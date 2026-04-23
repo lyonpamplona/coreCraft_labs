@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+ENV/
+
+# Django
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/
+
+# Testes, cobertura e cache de ferramentas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Variaveis de ambiente e segredos locais
+.env
+.env.*
+*.local
+bitcoin.conf.local
+
+# Docker e dados locais de servicos
+bitcoin-data/
+redis-data/
+.bitcoin/
+
+# Logs e arquivos temporarios
+*.log
+*.pid
+tmp/
+temp/
+
+# IDEs e sistema operacional
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Artefatos locais do Codex
+.codex

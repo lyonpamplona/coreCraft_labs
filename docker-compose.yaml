@@ -1,0 +1,45 @@
+services:
+  bitcoind:
+    image: ruimarinho/bitcoin-core:latest
+    container_name: btc_regtest
+    ports:
+      - "18443:18443"
+      - "28332:28332"
+      - "28333:28333"
+    volumes:
+      - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
+    command: ["-regtest=1", "-printtoconsole", "-dbcache=100"]
+    mem_limit: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: btc_redis
+
+  web-app:
+    build: .
+    container_name: btc_ui
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8005:8000"
+    depends_on:
+      - bitcoind
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    mem_limit: 256M
+
+  zmq-listener:
+    build: .
+    container_name: btc_zmq_listener
+    command: python -m core.zmq_listener
+    volumes:
+      - .:/app
+    depends_on:
+      - bitcoind
+      - redis
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DJANGO_SETTINGS_MODULE=core.settings
+    mem_limit: 128M

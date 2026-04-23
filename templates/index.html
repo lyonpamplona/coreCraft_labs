@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eletro Lima | Bitcoin Node Command Center</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css">
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
+    <style>
+        :root {
+            --bg-color: #0d0f14;
+            --surface: rgba(26, 29, 35, 0.8);
+            --surface-hover: rgba(26, 29, 35, 1);
+            --accent: #f7931a;
+            --text-primary: #e1e1e1;
+            --text-secondary: #888;
+            --cyan: #00e5ff;
+            --green: #00ff41;
+            --yellow: #ffd600;
+            --glass-border: rgba(255, 255, 255, 0.05);
+        }
+        * { box-sizing: border-box; }
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% 0%, rgba(247, 147, 26, 0.05) 0%, transparent 50%);
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        #header {
+            backdrop-filter: blur(10px);
+            background-color: var(--surface);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .node-info { display: flex; gap: 2rem; }
+        .stat-item { display: flex; flex-direction: column; }
+        .stat-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-value { font-size: 1rem; color: var(--accent); font-weight: bold; }
+        
+        #mempool-dashboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            padding: 1rem 2rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .mp-card {
+            backdrop-filter: blur(10px);
+            background-color: var(--surface);
+            padding: 1rem;
+            border-radius: 12px;
+            border-left: 3px solid var(--cyan);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .mp-title { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem; text-transform: uppercase; }
+        .mp-value { font-size: 1.5rem; color: var(--cyan); font-weight: bold; transition: color 0.3s ease; }
+        .flash { color: #ffffff !important; }
+
+        #quick-actions {
+            display: flex;
+            gap: 1rem;
+            padding: 1rem 2rem;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid var(--glass-border);
+        }
+        .macro-btn {
+            background-color: var(--surface);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+        }
+        .macro-btn:hover {
+            background-color: var(--surface-hover);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+        .macro-btn.highlight {
+            background-color: rgba(247, 147, 26, 0.1);
+            color: var(--accent);
+            border-color: rgba(247, 147, 26, 0.3);
+        }
+        .macro-btn.highlight:hover { background-color: rgba(247, 147, 26, 0.2); }
+
+        #main-workspace { display: flex; flex: 1; overflow: hidden; }
+        #terminal-container { flex: 3; padding: 1rem; overflow: hidden; }
+        .xterm-viewport { overflow-y: auto !important; }
+        
+        #block-explorer {
+            flex: 1;
+            backdrop-filter: blur(10px);
+            background-color: var(--surface);
+            border-left: 1px solid var(--glass-border);
+            display: flex;
+            flex-direction: column;
+        }
+        .explorer-header {
+            padding: 1rem;
+            background-color: rgba(0, 255, 65, 0.05);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+            color: var(--green);
+            font-weight: bold;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        #block-feed { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+        .block-item {
+            background-color: rgba(0, 255, 65, 0.05);
+            border: 1px solid rgba(0, 255, 65, 0.1);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .block-icon { font-size: 1.5rem; color: var(--green); }
+        .block-details { display: flex; flex-direction: column; gap: 0.25rem; }
+        .bd-time { font-size: 0.7rem; color: var(--text-secondary); }
+        .bd-size { font-size: 0.85rem; color: var(--text-primary); }
+        .bd-seq { font-size: 0.7rem; color: var(--green); }
+    </style>
+</head>
+<body>
+    <header id="header">
+        <div class="node-info">
+            <div class="stat-item">
+                <span class="stat-label">Rede</span>
+                <span class="stat-value">REGTEST</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Node Status</span>
+                <span class="stat-value">ONLINE</span>
+            </div>
+        </div>
+        <div class="stat-item" style="text-align: right;">
+            <span class="stat-label">Operador</span>
+            <span class="stat-value">Lyon @ Eletro Lima</span>
+        </div>
+    </header>
+
+    <div id="mempool-dashboard">
+        <div class="mp-card">
+            <span class="mp-title">Mempool TXs (Volátil)</span>
+            <span class="mp-value" id="mp-txs">0</span>
+        </div>
+        <div class="mp-card">
+            <span class="mp-title">Tamanho Total (Bytes)</span>
+            <span class="mp-value" id="mp-size">0</span>
+        </div>
+        <div class="mp-card">
+            <span class="mp-title">Taxas Acumuladas (BTC)</span>
+            <span class="mp-value" id="mp-fee">0.00000000</span>
+        </div>
+    </div>
+
+    <div id="quick-actions">
+        <button class="macro-btn" onclick="executeMacro('getbalance')">󰇱 Saldo</button>
+        <button class="macro-btn" onclick="executeMacro('getnewaddress')">󰌌 Novo Endereço</button>
+        <button class="macro-btn" onclick="executeMacro('getblockchaininfo')">󰋽 Info da Rede</button>
+        <button class="macro-btn highlight" onclick="mineBlockMacro()">󰜎 Forjar 1 Bloco</button>
+    </div>
+
+    <div id="main-workspace">
+        <main id="terminal-container"></main>
+        <aside id="block-explorer">
+            <div class="explorer-header">
+                <span>󰄴</span> Consenso: Últimos Blocos
+            </div>
+            <div id="block-feed"></div>
+        </aside>
+    </div>
+
+    <script>
+        const term = new Terminal({
+            cursorBlink: true,
+            theme: { background: 'transparent', foreground: '#ffffff', cursor: '#f7931a', selectionBackground: 'rgba(247, 147, 26, 0.3)' },
+            fontFamily: '"JetBrains Mono", monospace',
+            fontSize: 14,
+            lineHeight: 1.2
+        });
+
+        term.open(document.getElementById('terminal-container'));
+        term.writeln('\x1b[1;33m╔══════════════════════════════════════════════════════════════╗\x1b[0m');
+        term.writeln('\x1b[1;33m║  liveryOS Core | Automação e Monitoramento de Nó Bitcoin     ║\x1b[0m');
+        term.writeln('\x1b[1;33m╚══════════════════════════════════════════════════════════════╝\x1b[0m');
+        term.write('\r\nlyon@btc-node:~$ ');
+
+        // Mantem um canal em tempo real para eventos publicados pelo listener ZMQ.
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/btc/');
+
+        /**
+         * Recebe eventos rawtx/rawblock e reflete a atividade do node no terminal.
+         */
+        socket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            const timestamp = new Date().toLocaleTimeString();
+            
+            if (data.topic === 'rawblock') {
+                term.write(`\r\n\x1b[1;32m[${timestamp}] 󰄴 BLOCO CONFIRMADO | Size: ${data.size}b | Seq: ${data.sequence}\x1b[0m`);
+                addBlockToFeed(data.size, data.sequence, timestamp);
+            } else if (data.topic === 'rawtx') {
+                term.write(`\r\n\x1b[1;33m[${timestamp}] 󱓞 MEMPOOL TX     | Size: ${data.size}b | Seq: ${data.sequence}\x1b[0m`);
+            }
+            term.write('\r\nlyon@btc-node:~$ ' + currLine);
+        };
+
+        /**
+         * Adiciona um bloco confirmado no painel lateral de consenso.
+         */
+        function addBlockToFeed(size, sequence, time) {
+            const feed = document.getElementById('block-feed');
+            const item = document.createElement('div');
+            item.className = 'block-item';
+            item.innerHTML = `
+                <div class="block-icon">󰄴</div>
+                <div class="block-details">
+                    <span class="bd-time">${time}</span>
+                    <span class="bd-size">${size} bytes</span>
+                    <span class="bd-seq">Seq: ${sequence}</span>
+                </div>
+            `;
+            feed.prepend(item);
+        }
+
+        let currLine = "";
+
+        /**
+         * Captura a digitacao no terminal, trata Enter/Backspace e ecoa caracteres.
+         */
+        term.onData(e => {
+            switch (e) {
+                case '\r':
+                    if (currLine.trim()) {
+                        term.write('\r\n');
+                        processCommand(currLine);
+                        currLine = "";
+                    } else {
+                        term.write('\r\nlyon@btc-node:~$ ');
+                    }
+                    break;
+                case '\u007F':
+                    if (currLine.length > 0) {
+                        currLine = currLine.slice(0, -1);
+                        term.write('\b \b');
+                    }
+                    break;
+                default:
+                    if (e >= " " && e <= "~") {
+                        currLine += e;
+                        term.write(e);
+                    }
+            }
+        });
+
+        /**
+         * Envia um comando textual para o backend Django e processa a resposta RPC.
+         */
+        async function processCommand(cmd, silent = false) {
+            try {
+                const response = await fetch('/terminal/', {
+                    method: 'POST',
+                    body: JSON.stringify({ command: cmd }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (!silent) {
+                    if (data.error) {
+                        term.writeln(`\x1b[31m[RPC ERROR] ${data.error.message || JSON.stringify(data.error)}\x1b[0m`);
+                    } else {
+                        const output = JSON.stringify(data.result, null, 2);
+                        output.split('\n').forEach(line => term.writeln(line));
+                    }
+                    term.write('\r\nlyon@btc-node:~$ ');
+                }
+                return data;
+            } catch (err) {
+                if (!silent) {
+                    term.writeln('\x1b[31m[SYSTEM ERROR] Falha na conexão com o backend.\x1b[0m');
+                    term.write('\r\nlyon@btc-node:~$ ');
+                }
+                return { error: err };
+            }
+        }
+
+        /**
+         * Executa uma macro simples que corresponde diretamente a um comando RPC.
+         */
+        function executeMacro(cmd) {
+            term.write(cmd + '\r\n');
+            processCommand(cmd);
+        }
+
+        /**
+         * Gera um endereco de recompensa e minera um bloco em regtest.
+         */
+        async function mineBlockMacro() {
+            term.write('generatetoaddress 1 [auto-address]\r\n');
+            term.writeln('\x1b[36m[SYSTEM] Solicitando novo endereço de recompensa...\x1b[0m');
+            
+            const addrData = await processCommand('getnewaddress', true);
+            
+            if (addrData.result) {
+                const addr = addrData.result;
+                term.writeln(`\x1b[36m[SYSTEM] Endereço gerado: ${addr}\x1b[0m`);
+                term.writeln('\x1b[36m[SYSTEM] Forjando 1 bloco. Aguardando confirmação ZMQ...\x1b[0m');
+                await processCommand(`generatetoaddress 1 ${addr}`, true);
+                term.write('\r\nlyon@btc-node:~$ ');
+            } else {
+                term.writeln('\x1b[31m[SYSTEM ERROR] Falha ao gerar endereço. Crie uma carteira primeiro.\x1b[0m');
+                term.write('\r\nlyon@btc-node:~$ ');
+            }
+        }
+
+        /**
+         * Consulta periodicamente o estado da mempool para alimentar o dashboard.
+         */
+        async function fetchMempoolState() {
+            try {
+                const response = await fetch('/terminal/', {
+                    method: 'POST',
+                    body: JSON.stringify({ command: 'getmempoolinfo' }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (!data.error && data.result) {
+                    updateDashboardValue('mp-txs', data.result.size);
+                    updateDashboardValue('mp-size', data.result.bytes);
+                    updateDashboardValue('mp-fee', (data.result.total_fee || 0).toFixed(8));
+                }
+            } catch (err) {}
+        }
+
+        /**
+         * Atualiza um card do dashboard e aplica realce visual quando o valor muda.
+         */
+        function updateDashboardValue(elementId, newValue) {
+            const el = document.getElementById(elementId);
+            if (el.innerText !== String(newValue)) {
+                el.innerText = newValue;
+                el.classList.add('flash');
+                setTimeout(() => el.classList.remove('flash'), 300);
+            }
+        }
+
+        setInterval(fetchMempoolState, 3000);
+        fetchMempoolState();
+    </script>
+</body>
+</html>
