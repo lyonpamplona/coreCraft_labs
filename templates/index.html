@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>core-craft</title>
+    <title>coreCraft</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <style>
@@ -184,16 +184,16 @@
     <header>
         <div class="stat-group">
             <div class="stat-box">
-                <span class="stat-label">Rede Core</span>
+                <span class="stat-label">blockchain</span>
                 <span class="stat-val">REGTEST</span>
             </div>
             <div class="stat-box">
-                <span class="stat-label">Conexão RPC</span>
+                <span class="stat-label">RPC</span>
                 <span class="stat-val" style="color: var(--green);">ESTÁVEL</span>
             </div>
         </div>
         <div class="stat-box" style="align-items: flex-end;">
-            <span class="stat-label">Operador</span>
+            <span class="stat-label">operador</span>
             <span class="stat-val" style="color: var(--text-primary);">developer@corecraft</span>
         </div>
     </header>
@@ -260,12 +260,12 @@
         term.open(document.getElementById('terminal-container'));
         
         function printWelcome() {
-            term.writeln('\x1b[1;33mliveryOS Core Terminal | v2.1.0\x1b[0m');
+            term.writeln('\x1b[1;33mdeveloper corecraft | v2.1.0\x1b[0m');
             term.writeln('\x1b[38;5;242mDigite \x1b[1;36mhelp\x1b[38;5;242m para listar os comandos ou use os atalhos acima.\x1b[0m\r\n');
             prompt();
         }
 
-        function prompt() { term.write('\x1b[1;32mlyon@btc-node\x1b[0m:\x1b[1;34m~\x1b[0m$ '); }
+        function prompt() { term.write('\x1b[1;32mdeveloper@corecraft\x1b[0m:\x1b[1;34m~\x1b[0m$ '); }
 
         printWelcome();
 
@@ -350,12 +350,12 @@
             const lines = text.split('\n');
             lines.forEach(line => {
                 if (line.startsWith('==')) {
-                    term.writeln(`\r\n\x1b[1;35m${line}\x1b[0m`); // Magenta para Categorias
+                    term.writeln(`\r\n\x1b[1;35m${line}\x1b[0m`); 
                 } else if (line.trim().length > 0) {
                     const parts = line.split(' ');
                     const cmd = parts.shift();
                     const rest = parts.join(' ');
-                    term.writeln(`  \x1b[1;36m${cmd}\x1b[0m \x1b[38;5;242m${rest}\x1b[0m`); // Ciano para comandos, cinza para args
+                    term.writeln(`  \x1b[1;36m${cmd}\x1b[0m \x1b[38;5;242m${rest}\x1b[0m`); 
                 }
             });
         }
@@ -373,7 +373,7 @@
                     if (data.error) {
                         term.writeln(`\x1b[31m[ERRO] ${data.error.message || JSON.stringify(data.error)}\x1b[0m`);
                     } else {
-                        // Interceptação inteligente para o comando HELP
+                        
                         if (cmd.trim() === 'help' && typeof data.result === 'string') {
                             formatHelpOutput(data.result);
                         } else {
@@ -387,7 +387,7 @@
                 return data;
             } catch (err) {
                 if (!silent) {
-                    term.writeln('\x1b[31m[SISTEMA] Falha de comunicação com o backend Django.\x1b[0m\r\n');
+                    term.writeln('\x1b[31m[SISTEMA] Falha de comunicação.\x1b[0m\r\n');
                     prompt();
                 }
                 return { error: err };
