@@ -1,45 +1,115 @@
 services:
-  bitcoind:
+  btc-mainnet:
     image: ruimarinho/bitcoin-core:latest
-    container_name: btc_regtest
-    ports:
-      - "18443:18443"
-      - "28332:28332"
-      - "28333:28333"
+    container_name: btc_mainnet
+    restart: unless-stopped
+    stop_grace_period: 15m
+    env_file: .env
     volumes:
       - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
-    command: ["-regtest=1", "-printtoconsole", "-dbcache=100"]
+      - btc_main_data:/home/bitcoin/.bitcoin
+    command: ["-printtoconsole", "-dbcache=300"]
+    mem_limit: 2048M
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -rpcuser=\"$${MAINNET_RPC_USER}\" -rpcpassword=\"$${MAINNET_RPC_PASS}\" getblockchaininfo >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  btc-signet:
+    image: ruimarinho/bitcoin-core:latest
+    container_name: btc_signet
+    restart: unless-stopped
+    stop_grace_period: 15m
+    env_file: .env
+    volumes:
+      - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
+      - btc_sig_data:/home/bitcoin/.bitcoin
+    command: ["-signet", "-printtoconsole", "-dbcache=100"]
     mem_limit: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -signet -rpcuser=\"$${SIGNET_RPC_USER}\" -rpcpassword=\"$${SIGNET_RPC_PASS}\" getblockchaininfo >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  btc-regtest:
+    image: ruimarinho/bitcoin-core:latest
+    container_name: btc_regtest
+    restart: unless-stopped
+    stop_grace_period: 15m
+    env_file: .env
+    volumes:
+      - ./bitcoin.conf:/home/bitcoin/.bitcoin/bitcoin.conf
+      - btc_reg_data:/home/bitcoin/.bitcoin
+    command: ["-regtest", "-printtoconsole", "-dbcache=100"]
+    mem_limit: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "bitcoin-cli -regtest -rpcuser=\"$${REGTEST_RPC_USER}\" -rpcpassword=\"$${REGTEST_RPC_PASS}\" getblockchaininfo >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   redis:
     image: redis:7-alpine
     container_name: btc_redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru
+    mem_limit: 256M
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
   web-app:
     build: .
     container_name: btc_ui
+    restart: unless-stopped
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
     ports:
       - "8005:8000"
     depends_on:
-      - bitcoind
+      - btc-mainnet
+      - btc-signet
+      - btc-regtest
       - redis
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-    mem_limit: 256M
+    env_file: .env
+    mem_limit: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/', timeout=3).read()\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   zmq-listener:
     build: .
     container_name: btc_zmq_listener
+    restart: unless-stopped
     command: python -m core.zmq_listener
     volumes:
       - .:/app
     depends_on:
-      - bitcoind
+      - btc-mainnet
+      - btc-signet
+      - btc-regtest
       - redis
-    environment:
-      - REDIS_URL=redis://redis:6379/0
-      - DJANGO_SETTINGS_MODULE=core.settings
-    mem_limit: 128M
+    env_file: .env
+    mem_limit: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/corecraft-zmq.ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  btc_main_data:
+  btc_sig_data:
+  btc_reg_data:

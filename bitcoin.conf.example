@@ -1,0 +1,44 @@
+server=1
+printtoconsole=1
+listen=1
+maxconnections=32
+maxuploadtarget=144
+
+# Copie este arquivo para bitcoin.conf e substitua cada rpcauth por valores
+# gerados localmente. O bitcoin.conf real e ignorado pelo Git.
+#
+# Formato:
+#   rpcauth=<usuario>:<salt>$<hash>
+#
+# Gere com o script oficial rpcauth.py do Bitcoin Core ou com:
+#   python3 contrib/rpcauth.py <usuario>
+
+[main]
+prune=550
+disablewallet=1
+maxmempool=100
+rpcallowip=0.0.0.0/0
+rpcbind=0.0.0.0
+rpcauth=<mainnet-user>:<salt>$<hash>
+zmqpubrawblock=tcp://0.0.0.0:28333
+zmqpubhashblock=tcp://0.0.0.0:28333
+
+[signet]
+prune=550
+disablewallet=1
+maxmempool=50
+rpcallowip=0.0.0.0/0
+rpcbind=0.0.0.0
+rpcauth=<signet-user>:<salt>$<hash>
+zmqpubrawblock=tcp://0.0.0.0:28333
+zmqpubhashblock=tcp://0.0.0.0:28333
+
+[regtest]
+txindex=1
+fallbackfee=0.0002
+rpcallowip=0.0.0.0/0
+rpcbind=0.0.0.0
+rpcauth=<regtest-user>:<salt>$<hash>
+zmqpubrawtx=tcp://0.0.0.0:28332
+zmqpubrawblock=tcp://0.0.0.0:28333
+zmqpubhashblock=tcp://0.0.0.0:28333

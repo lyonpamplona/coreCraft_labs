@@ -11,5 +11,8 @@ from . import views
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('auth/logout/', views.auth_logout, name='auth_logout'),
+    path('auth/verify/', views.auth_verify, name='auth_verify'),
+    path('health/', views.health, name='health'),
     path('terminal/', views.terminal_command, name='terminal_command'),
 ]

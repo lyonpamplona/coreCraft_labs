@@ -27,8 +27,11 @@ htmlcov/
 # Variaveis de ambiente e segredos locais
 .env
 .env.*
+!.env.example
 *.local
+bitcoin.conf
 bitcoin.conf.local
+!bitcoin.conf.example
 
 # Docker e dados locais de servicos
 bitcoin-data/
@@ -40,6 +43,13 @@ redis-data/
 *.pid
 tmp/
 temp/
+
+auditoria.md
+roadmap.md
+roadmap-layout-painel.md
+prototipo-painel-ide.html
+apresentacao.md
+redesign-interface-ide.md
 
 # IDEs e sistema operacional
 .idea/

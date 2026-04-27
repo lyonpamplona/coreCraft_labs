@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>coreCraft</title>
+    <title>coreCraft | Multi-Node</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css">
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
     <style>
@@ -11,7 +11,9 @@
             --bg-base: #0a0b0e;
             --surface: rgba(22, 25, 31, 0.7);
             --surface-solid: #16191f;
-            --accent: #f7931a;
+            --accent-main: #f7931a;
+            --accent-sig: #6b46c1;
+            --accent-reg: #00e5ff;
             --text-primary: #e2e8f0;
             --text-muted: #64748b;
             --cyan: #00e5ff;
@@ -21,7 +23,7 @@
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        
+
         body {
             background-color: var(--bg-base);
             background-image: radial-gradient(circle at top right, rgba(247, 147, 26, 0.05), transparent 40%);
@@ -44,10 +46,17 @@
             z-index: 10;
         }
 
-        .stat-group { display: flex; gap: 2rem; }
+        .stat-group { display: flex; gap: 2rem; align-items: center; }
         .stat-box { display: flex; flex-direction: column; }
         .stat-label { font-size: 0.65rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
-        .stat-val { font-size: 0.95rem; color: var(--accent); font-weight: 600; }
+        .stat-val { font-size: 0.95rem; color: var(--text-primary); font-weight: 600; }
+
+        .net-switcher { display: flex; gap: 0.5rem; background: rgba(0,0,0,0.3); padding: 0.3rem; border-radius: 8px; border: 1px solid var(--glass-border); }
+        .net-btn { border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; color: #fff; opacity: 0.4; transition: 0.2s; font-family: var(--font-mono); font-size: 0.8rem; background: transparent;}
+        .net-btn.active { opacity: 1; font-weight: bold; }
+        .btn-main.active { background: var(--accent-main); color: #000; box-shadow: 0 0 10px rgba(247, 147, 26, 0.4); }
+        .btn-sig.active { background: var(--accent-sig); box-shadow: 0 0 10px rgba(107, 70, 193, 0.4); }
+        .btn-reg.active { background: var(--accent-reg); color: #000; box-shadow: 0 0 10px rgba(0, 229, 255, 0.4); }
 
         #mempool-metrics {
             display: grid;
@@ -67,13 +76,14 @@
             justify-content: space-between;
             align-items: center;
             border-left: 3px solid var(--cyan);
+            transition: border-color 0.3s ease;
         }
 
         .metric-info { display: flex; flex-direction: column; }
         .metric-title { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; }
-        .metric-value { font-size: 1.25rem; color: var(--cyan); font-weight: 700; transition: color 0.3s ease; }
-        .metric-icon { font-size: 1.5rem; color: rgba(0, 229, 255, 0.2); }
-        .flash { color: #ffffff !important; }
+        .metric-value { font-size: 1.25rem; color: var(--text-primary); font-weight: 700; transition: color 0.3s ease; }
+        .metric-icon { font-size: 1.5rem; color: rgba(255, 255, 255, 0.1); }
+        .flash { color: #ffffff !important; text-shadow: 0 0 10px rgba(255,255,255,0.5); }
 
         #workspace {
             display: flex;
@@ -122,11 +132,12 @@
         }
 
         .btn:hover { background-color: rgba(255,255,255,0.05); }
-        .btn-primary { border-color: rgba(247, 147, 26, 0.5); color: var(--accent); }
-        .btn-primary:hover { background-color: rgba(247, 147, 26, 0.1); }
-        .btn-danger:hover { background-color: rgba(239, 68, 68, 0.1); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
+        .btn-danger { border-color: rgba(239, 68, 68, 0.5); color: #ef4444; }
+        .btn-danger:hover { background-color: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.8); }
 
-        #terminal-container { flex: 1; padding: 1rem; background-color: transparent; }
+        #terminal-container { flex: 1; position: relative; background-color: transparent; }
+        .term-panel { display: none; height: 100%; width: 100%; position: absolute; top: 0; left: 0; padding: 1rem; }
+        .term-panel.active { display: block; }
 
         #sidebar {
             flex: 1;
@@ -178,272 +189,2580 @@
         .bc-seq { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
         .bc-time { font-size: 0.65rem; color: var(--text-muted); }
         .bc-size { font-size: 0.7rem; color: var(--green); background: rgba(16, 185, 129, 0.1); padding: 0.1rem 0.4rem; border-radius: 4px; }
+
+        #toast-stack {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            width: min(360px, calc(100vw - 2rem));
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(22, 25, 31, 0.96);
+            border: 1px solid var(--glass-border);
+            border-left: 3px solid var(--cyan);
+            border-radius: 8px;
+            padding: 0.85rem 1rem;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+            color: var(--text-primary);
+            animation: toastIn 0.2s ease;
+        }
+
+        .toast-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 0.25rem; }
+        .toast-message { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
+        .toast.success { border-left-color: var(--green); }
+        .toast.error { border-left-color: #ef4444; }
+        .toast.warn { border-left-color: var(--accent-main); }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #login-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 40;
+            background: rgba(10, 11, 14, 0.92);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        #login-overlay.hidden { display: none; }
+
+        .login-panel {
+            width: min(440px, 100%);
+            background: rgba(22, 25, 31, 0.94);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+        }
+
+        .login-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.4rem;
+            text-transform: uppercase;
+        }
+
+        .login-subtitle {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .login-input {
+            width: 100%;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            padding: 0.75rem;
+            outline: none;
+        }
+
+        .login-input:focus { border-color: var(--accent-reg); box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.12); }
+        .login-actions { display: flex; justify-content: flex-end; margin-top: 1rem; }
+        .login-submit { background: var(--accent-reg); border-color: transparent; color: #001217; font-weight: 700; }
+        .login-submit:disabled { opacity: 0.5; cursor: wait; }
+
+        /* IDE redesign */
+        :root {
+            --ide-bg: #0d1117;
+            --ide-top: #0a0f16;
+            --ide-panel: #161b22;
+            --ide-panel-soft: #111722;
+            --ide-border: #30363d;
+            --ide-blue: #58a6ff;
+            --ide-yellow: #d29922;
+            --ide-red: #f85149;
+            --ide-hover: #182130;
+            --ide-tab-bg: #0f141b;
+            --ide-terminal-bg: #05080d;
+            --ide-status-bg: #0e639c;
+            --scroll-track: #0a0f16;
+            --scroll-thumb: #30363d;
+            --scroll-thumb-hover: #58a6ff;
+            --sidebar-width: 236px;
+            --rightbar-width: 300px;
+            --terminal-height: 218px;
+            --actions-width: 220px;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+        }
+
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border: 2px solid var(--scroll-track);
+            border-radius: 999px;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
+        }
+
+        *::-webkit-scrollbar-corner {
+            background: var(--scroll-track);
+        }
+
+        body {
+            display: block;
+            background: var(--ide-bg);
+            background-image: none;
+            min-height: 0;
+        }
+
+        svg.icon {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex: 0 0 auto;
+        }
+
+        .ide-shell {
+            height: 100vh;
+            height: 100dvh;
+            display: grid;
+            grid-template-rows: 34px 1fr 24px;
+            color: var(--text-primary);
+            background: var(--ide-bg);
+            overflow: hidden;
+        }
+
+        .ide-topbar {
+            display: grid;
+            grid-template-columns: 220px minmax(220px, 1fr) 220px;
+            align-items: center;
+            background: var(--ide-top);
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            min-width: 0;
+        }
+
+        .ide-brand,
+        .ide-operator,
+        .ide-command {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .ide-brand {
+            padding: 0 0.85rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .ide-command {
+            justify-self: center;
+            width: min(440px, 88%);
+            height: 24px;
+            padding: 0 0.65rem;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-panel-soft);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        .ide-command span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ide-operator {
+            justify-self: end;
+            padding-right: 0.85rem;
+            font-size: 0.75rem;
+        }
+
+        .ide-workspace {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: 46px var(--sidebar-width) 5px minmax(0, 1fr) 5px var(--rightbar-width);
+            overflow: hidden;
+        }
+
+        .ide-activitybar {
+            background: var(--ide-top);
+            border-right: 1px solid var(--ide-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.5rem 0;
+            gap: 0.375rem;
+        }
+
+        .icon-btn {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-muted);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .icon-btn:hover,
+        .icon-btn.active {
+            color: var(--text-primary);
+            background: var(--ide-hover);
+        }
+
+        .icon-btn[data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            left: 42px;
+            top: 5px;
+            z-index: 60;
+            white-space: nowrap;
+            padding: 5px 8px;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-top);
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+        }
+
+        .ide-sidebar,
+        .ide-rightbar {
+            min-width: 0;
+            background: var(--ide-panel);
+            display: grid;
+            grid-template-rows: 38px 1fr;
+        }
+
+        .ide-sidebar {
+            border-right: 1px solid var(--ide-border);
+        }
+
+        .ide-rightbar {
+            border-left: 1px solid var(--ide-border);
+        }
+
+        .ide-panel-title {
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--ide-border);
+            text-transform: uppercase;
+            font-size: 0.68rem;
+        }
+
+        .ide-networks {
+            padding: 0.5rem;
+            display: grid;
+            align-content: start;
+            gap: 0.375rem;
+            overflow: auto;
+        }
+
+        .side-panel {
+            min-height: 0;
+            display: none;
+            overflow: auto;
+        }
+
+        .side-panel.active {
+            display: block;
+        }
+
+        .tool-list {
+            padding: 0.5rem;
+            display: grid;
+            align-content: start;
+            gap: 0.5rem;
+        }
+
+        .net-btn {
+            height: 40px;
+            width: 100%;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-muted);
+            display: grid;
+            grid-template-columns: 10px 1fr 18px;
+            gap: 0.55rem;
+            align-items: center;
+            padding: 0 0.55rem;
+            opacity: 1;
+            text-align: left;
+        }
+
+        .net-btn.active,
+        .net-btn:hover {
+            color: var(--text-primary);
+            background: var(--ide-hover);
+        }
+
+        .net-label {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
+        .net-label strong,
+        .net-label small {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .net-label strong {
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .net-label small {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
+
+        .net-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--green);
+        }
+
+        .btn-main .net-dot { background: var(--accent-main); }
+        .btn-sig .net-dot { background: var(--accent-sig); }
+        .btn-reg .net-dot { background: var(--accent-reg); }
+
+        .ide-main {
+            min-width: 0;
+            min-height: 0;
+            display: grid;
+            grid-template-rows: 36px minmax(0, 1fr) 5px var(--terminal-height);
+            background: var(--ide-bg);
+            overflow: hidden;
+        }
+
+        .content {
+            min-height: 0;
+            padding: 0.875rem;
+            display: grid;
+            grid-template-rows: 86px minmax(0, 1fr);
+            gap: 0.75rem;
+            overflow: hidden;
+        }
+
+        .work-area {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) var(--actions-width);
+            gap: 0.75rem;
+        }
+
+        .editor-card {
+            min-height: 0;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: rgba(22, 27, 34, 0.72);
+            overflow: hidden;
+            display: grid;
+            grid-template-rows: 34px minmax(0, 1fr);
+        }
+
+        .card-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0 0.75rem;
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+        }
+
+        .editor-view {
+            min-height: 0;
+            display: none;
+            overflow: auto;
+        }
+
+        .editor-view.active {
+            display: block;
+        }
+
+        .rpc-view {
+            padding: 0.75rem 0;
+        }
+
+        .line {
+            display: grid;
+            grid-template-columns: 44px minmax(0, 1fr);
+            min-height: 24px;
+        }
+
+        .ln {
+            color: #49515d;
+            text-align: right;
+            padding-right: 0.75rem;
+            user-select: none;
+        }
+
+        .prop { color: var(--ide-blue); }
+        .str { color: var(--green); }
+        .num { color: #f0883e; }
+        .kw { color: #a371f7; }
+
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            align-content: start;
+            gap: 0.5rem;
+        }
+
+        .quick-action {
+            height: 68px;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: rgba(22, 27, 34, 0.72);
+            color: var(--text-primary);
+            display: grid;
+            place-items: center;
+            gap: 0.375rem;
+            cursor: pointer;
+            min-width: 0;
+        }
+
+        .quick-action:hover {
+            border-color: var(--ide-blue);
+            background: var(--ide-hover);
+        }
+
+        .quick-action span {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ide-tabs {
+            display: flex;
+            background: var(--ide-tab-bg);
+            border-bottom: 1px solid var(--ide-border);
+            min-width: 0;
+            overflow-x: auto;
+            scrollbar-gutter: stable;
+        }
+
+        .ide-tab {
+            height: 36px;
+            min-width: 116px;
+            max-width: 168px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0 0.75rem;
+            border-right: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            flex: 0 0 auto;
+        }
+
+        .ide-tab span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ide-tab.active {
+            color: var(--text-primary);
+            background: var(--ide-bg);
+            border-top: 2px solid var(--accent-reg);
+        }
+
+        #mempool-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.625rem;
+            padding: 0.75rem 0.875rem;
+            border-bottom: 0;
+        }
+
+        .metric-card {
+            min-width: 0;
+            min-height: 62px;
+            background: rgba(22, 27, 34, 0.72);
+            border: 1px solid var(--ide-border);
+            border-left: 3px solid var(--accent-reg);
+            border-radius: 8px;
+            padding: 0.75rem;
+            display: grid;
+            grid-template-columns: 1fr 28px;
+            align-items: center;
+        }
+
+        .metric-title {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 0.45rem;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .metric-icon {
+            color: var(--accent-reg);
+            opacity: 0.75;
+            font-size: 0;
+        }
+
+        #workspace {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            overflow: hidden;
+            background: var(--ide-terminal-bg);
+            contain: paint;
+        }
+
+        .main-view {
+            min-width: 0;
+            min-height: 0;
+            display: none;
+        }
+
+        .main-view.active {
+            display: block;
+        }
+
+        #terminal-wrapper {
+            min-width: 0;
+            min-height: 0;
+            border-right: 0;
+            display: grid;
+            grid-template-rows: 76px minmax(0, 1fr);
+            overflow: hidden;
+        }
+
+        #terminal-wrapper.active {
+            display: grid;
+        }
+
+        #terminal-wrapper.main-view.active {
+            display: grid;
+        }
+
+        .terminal-toolbar {
+            background: var(--ide-bg);
+            border-bottom: 1px solid var(--ide-border);
+            padding: 0.65rem 0.875rem;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .toolbar-title {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+        }
+
+        .ide-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            justify-content: flex-end;
+        }
+
+        .btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: rgba(22, 27, 34, 0.72);
+            color: var(--text-primary);
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+
+        .btn:hover {
+            background: var(--ide-hover);
+            border-color: var(--ide-blue);
+        }
+
+        .btn[data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            right: 0;
+            top: 42px;
+            z-index: 55;
+            white-space: nowrap;
+            padding: 5px 8px;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-top);
+            color: var(--text-primary);
+            font-size: 0.72rem;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+        }
+
+        .btn-danger {
+            border-color: rgba(248, 81, 73, 0.45);
+            color: var(--ide-red);
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            height: 26px;
+            background: var(--ide-border);
+            margin: 0 0.2rem;
+        }
+
+        #terminal-container {
+            min-height: 0;
+            position: relative;
+            background: var(--ide-terminal-bg);
+            overflow: hidden;
+            contain: paint;
+        }
+
+        .term-panel {
+            display: none;
+            position: absolute;
+            inset: 0;
+            padding: 0.75rem;
+            overflow: hidden;
+        }
+
+        .term-panel.active { display: block; }
+
+        #sidebar {
+            min-width: 0;
+            min-height: 0;
+            background: var(--ide-panel);
+            display: grid;
+            grid-template-rows: 38px 1fr;
+        }
+
+        .sidebar-header {
+            padding: 0 0.75rem;
+            height: 38px;
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        #block-feed {
+            min-height: 0;
+            overflow: auto;
+            padding: 0.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .block-card {
+            background: var(--ide-panel-soft);
+            border: 1px solid var(--ide-border);
+            border-left: 3px solid var(--green);
+            padding: 0;
+            border-radius: 8px;
+            gap: 0.65rem;
+            overflow: hidden;
+        }
+
+        .bc-icon {
+            font-size: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--green);
+            margin-top: 0.35rem;
+            flex: 0 0 auto;
+        }
+
+        .statusbar {
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 0.75rem;
+            background: var(--ide-status-bg);
+            color: #fff;
+            font-size: 0.72rem;
+            position: relative;
+            z-index: 20;
+            border-top: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .status-left,
+        .status-right {
+            display: flex;
+            gap: 0.875rem;
+            align-items: center;
+            min-width: 0;
+        }
+
+        button {
+            font: inherit;
+        }
+
+        .ide-network-state {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
+
+        .ide-status-pill {
+            color: var(--accent-reg);
+            font-weight: 700;
+        }
+
+        .ide-networks .net-btn {
+            box-shadow: none;
+        }
+
+        .ide-tab {
+            border-top: 0;
+            border-left: 0;
+            border-bottom: 0;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .metric-icon {
+            display: grid;
+            place-items: center;
+        }
+
+        .terminal-toolbar .toolbar-title {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tool-input,
+        .tool-select,
+        .color-input {
+            width: 100%;
+            height: 34px;
+            border: 1px solid var(--ide-border);
+            border-radius: 7px;
+            background: var(--ide-panel-soft);
+            color: var(--text-primary);
+            font: inherit;
+            padding: 0 0.65rem;
+            outline: none;
+        }
+
+        .color-input {
+            padding: 3px 6px;
+            cursor: pointer;
+        }
+
+        .tool-input:focus,
+        .tool-select:focus,
+        .color-input:focus {
+            border-color: var(--accent-reg);
+        }
+
+        .tool-item {
+            min-height: 42px;
+            display: grid;
+            grid-template-columns: 18px 1fr auto;
+            align-items: center;
+            gap: 0.55rem;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: var(--ide-panel-soft);
+            color: var(--text-muted);
+            padding: 0.5rem;
+            min-width: 0;
+        }
+
+        .tool-item span {
+            min-width: 0;
+        }
+
+        .tool-item strong,
+        .tool-item small {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .tool-item strong {
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            margin-bottom: 0.125rem;
+        }
+
+        .tool-item small {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
+
+        .settings-nav {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.375rem;
+            padding: 0.5rem;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: var(--ide-panel);
+        }
+
+        .settings-nav-button,
+        .theme-button {
+            min-width: 0;
+            min-height: 34px;
+            border: 1px solid var(--ide-border);
+            border-radius: 7px;
+            background: var(--ide-panel-soft);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            cursor: pointer;
+            padding: 0 0.6rem;
+        }
+
+        .settings-nav-button:hover,
+        .settings-nav-button.active,
+        .theme-button:hover,
+        .theme-button.active {
+            color: var(--text-primary);
+            border-color: var(--accent-reg);
+            background: var(--ide-hover);
+        }
+
+        .settings-nav-button span,
+        .theme-button span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .settings-group {
+            display: none;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: var(--ide-panel-soft);
+            overflow: hidden;
+        }
+
+        .settings-group.active {
+            display: block;
+        }
+
+        .settings-title {
+            min-height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0 0.65rem;
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            text-transform: uppercase;
+        }
+
+        .settings-body {
+            display: grid;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+
+        .settings-summary {
+            padding: 0.5rem 0.65rem;
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            line-height: 1.45;
+        }
+
+        .color-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.5rem;
+        }
+
+        .setting-label {
+            display: grid;
+            gap: 0.3rem;
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            min-width: 0;
+        }
+
+        .font-preview {
+            min-height: 34px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            border: 1px solid var(--ide-border);
+            border-radius: 7px;
+            color: var(--text-primary);
+            padding: 0 0.65rem;
+            background: rgba(0, 0, 0, 0.18);
+            overflow: hidden;
+        }
+
+        .font-preview code {
+            color: var(--accent-reg);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+        }
+
+        .setting-row {
+            min-height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.65rem;
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-primary);
+        }
+
+        .toggle {
+            width: 34px;
+            height: 18px;
+            border: 1px solid var(--ide-border);
+            border-radius: 999px;
+            background: var(--ide-top);
+            position: relative;
+            flex: 0 0 auto;
+            cursor: pointer;
+        }
+
+        .toggle::after {
+            content: "";
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            top: 2px;
+            left: 3px;
+            border-radius: 999px;
+            background: var(--text-muted);
+        }
+
+        .toggle.active {
+            border-color: var(--accent-reg);
+            background: rgba(0, 229, 255, 0.16);
+        }
+
+        .toggle.active::after {
+            left: 17px;
+            background: var(--accent-reg);
+        }
+
+        .docs-main-view {
+            height: 100%;
+            overflow: auto;
+            padding: 0.875rem;
+            background: var(--ide-bg);
+        }
+
+        .doc-hero,
+        .doc-card {
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: var(--ide-panel-soft);
+        }
+
+        .doc-hero {
+            display: grid;
+            gap: 0.5rem;
+            padding: 0.875rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .doc-hero strong {
+            color: var(--text-primary);
+            font-size: 1rem;
+        }
+
+        .doc-hero p,
+        .doc-card small {
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .doc-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.625rem;
+        }
+
+        .doc-card {
+            min-width: 0;
+            padding: 0.75rem;
+        }
+
+        .doc-card strong {
+            display: block;
+            color: var(--text-primary);
+            margin-bottom: 0.4rem;
+        }
+
+        .resize-handle {
+            background: var(--ide-bg);
+            position: relative;
+            z-index: 2;
+        }
+
+        .resize-handle.vertical {
+            cursor: col-resize;
+            border-right: 1px solid var(--ide-border);
+        }
+
+        .resize-handle.horizontal {
+            cursor: row-resize;
+            border-top: 1px solid var(--ide-border);
+            border-bottom: 1px solid var(--ide-border);
+        }
+
+        .resize-handle:hover::after,
+        body.resizing .resize-handle::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 229, 255, 0.24);
+        }
+
+        .block-visual {
+            display: grid;
+            gap: 0.625rem;
+            padding: 0.65rem;
+        }
+
+        .block-head {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: start;
+            gap: 0.5rem;
+        }
+
+        .block-height {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .block-height span,
+        .block-hash code,
+        .block-stat strong {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .block-pill {
+            min-height: 22px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(16, 185, 129, 0.45);
+            border-radius: 999px;
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--green);
+            font-size: 0.62rem;
+            text-transform: uppercase;
+            padding: 0 0.5rem;
+            white-space: nowrap;
+        }
+
+        .block-hash {
+            display: grid;
+            gap: 0.25rem;
+            min-width: 0;
+        }
+
+        .block-hash label,
+        .block-stat label {
+            color: var(--text-muted);
+            font-size: 0.62rem;
+            text-transform: uppercase;
+        }
+
+        .block-hash code {
+            display: block;
+            color: var(--ide-blue);
+            font-family: var(--font-mono);
+            font-size: 0.68rem;
+        }
+
+        .block-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0.375rem;
+        }
+
+        .block-stat {
+            min-width: 0;
+            border: 1px solid var(--ide-border);
+            border-radius: 7px;
+            background: rgba(0, 0, 0, 0.14);
+            padding: 0.45rem;
+        }
+
+        .block-stat strong {
+            display: block;
+            color: var(--text-primary);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
+        }
+
+        .block-route {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.68rem;
+            border-top: 1px solid var(--ide-border);
+            padding-top: 0.5rem;
+        }
+
+        .block-route strong {
+            color: var(--accent-reg);
+            font-size: 0.68rem;
+        }
+
+        .login-submit {
+            width: auto;
+            min-width: 84px;
+            padding: 0 1rem;
+            display: inline-flex;
+        }
+
+        .xterm {
+            height: 100%;
+            max-height: 100%;
+            overflow: hidden;
+        }
+
+        @media (max-width: 1120px) {
+            :root {
+                --rightbar-width: 0px;
+                --actions-width: 180px;
+            }
+
+            .ide-workspace {
+                grid-template-columns: 46px var(--sidebar-width) 5px minmax(0, 1fr);
+            }
+
+            .ide-rightbar {
+                display: none;
+            }
+
+            .resize-handle[data-resize="right"] {
+                display: none;
+            }
+
+            .work-area {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 820px) {
+            .ide-topbar {
+                grid-template-columns: 1fr auto;
+            }
+
+            .ide-command {
+                display: none;
+            }
+
+            .ide-workspace {
+                grid-template-columns: 42px minmax(0, 1fr);
+                position: relative;
+            }
+
+            .ide-sidebar {
+                display: none;
+                position: absolute;
+                left: 42px;
+                top: 0;
+                bottom: 0;
+                z-index: 30;
+                width: min(320px, calc(100vw - 42px));
+                box-shadow: 24px 0 50px rgba(0, 0, 0, 0.45);
+            }
+
+            .ide-workspace.mobile-sidebar-open .ide-sidebar {
+                display: grid;
+            }
+
+            .resize-handle {
+                display: none;
+            }
+
+            #mempool-metrics {
+                grid-template-columns: 1fr;
+                overflow: auto;
+            }
+
+            .content {
+                padding: 0.625rem;
+                overflow: auto;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .color-grid,
+            .doc-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ide-tab {
+                min-width: 96px;
+                max-width: 132px;
+            }
+        }
     </style>
 </head>
 <body>
-    <header>
-        <div class="stat-group">
-            <div class="stat-box">
-                <span class="stat-label">blockchain</span>
-                <span class="stat-val">REGTEST</span>
-            </div>
-            <div class="stat-box">
-                <span class="stat-label">RPC</span>
-                <span class="stat-val" style="color: var(--green);">ESTÁVEL</span>
-            </div>
-        </div>
-        <div class="stat-box" style="align-items: flex-end;">
-            <span class="stat-label">operador</span>
-            <span class="stat-val" style="color: var(--text-primary);">developer@corecraft</span>
-        </div>
-    </header>
-
-    <div id="mempool-metrics">
-        <div class="metric-card">
-            <div class="metric-info">
-                <span class="metric-title">Transações (Volátil)</span>
-                <span class="metric-value" id="mp-txs">0</span>
-            </div>
-            <div class="metric-icon">󱓞</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-info">
-                <span class="metric-title">Peso na Memória</span>
-                <span class="metric-value" id="mp-size">0 B</span>
-            </div>
-            <div class="metric-icon">󰟀</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-info">
-                <span class="metric-title">Taxas Acumuladas</span>
-                <span class="metric-value" id="mp-fee">0.00000000</span>
-            </div>
-            <div class="metric-icon">󰠱</div>
-        </div>
+    <div id="toast-stack"></div>
+    <div style="display: none">
+        <svg id="ico-cube" viewBox="0 0 24 24"><path d="m21 16-9 5-9-5V8l9-5 9 5Z"/><path d="m3.3 7.7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+        <svg id="ico-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <svg id="ico-git" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><circle cx="6" cy="18" r="3"/><path d="M6 9v6"/><path d="M8.2 8.2 15.8 15.8"/></svg>
+        <svg id="ico-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7Z"/></svg>
+        <svg id="ico-settings" viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.8 1.8 0 0 0-2-.36 1.8 1.8 0 0 0-1 1.63V21a2 2 0 1 1-4 0v-.09a1.8 1.8 0 0 0-1-1.63 1.8 1.8 0 0 0-2 .36l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.8 1.8 0 0 0 .36-2 1.8 1.8 0 0 0-1.63-1H3a2 2 0 1 1 0-4h.09a1.8 1.8 0 0 0 1.63-1 1.8 1.8 0 0 0-.36-2l-.06-.06A2 2 0 1 1 7.13 3.9l.06.06a1.8 1.8 0 0 0 2 .36h.01A1.8 1.8 0 0 0 10.2 2.7V2a2 2 0 1 1 4 0v.09a1.8 1.8 0 0 0 1 1.63 1.8 1.8 0 0 0 2-.36l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.8 1.8 0 0 0-.36 2v.01a1.8 1.8 0 0 0 1.63 1H21a2 2 0 1 1 0 4h-.09a1.8 1.8 0 0 0-1.51 1Z"/></svg>
+        <svg id="ico-terminal" viewBox="0 0 24 24"><path d="m4 17 6-5-6-5"/><path d="M12 19h8"/></svg>
+        <svg id="ico-wallet" viewBox="0 0 24 24"><path d="M4 7h16v13H4z"/><path d="M4 7V5h14v2"/><path d="M16 13h4"/></svg>
+        <svg id="ico-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v6"/><path d="M12 7h.01"/></svg>
+        <svg id="ico-hammer" viewBox="0 0 24 24"><path d="m14 5 5 5"/><path d="M12 7 4 15l5 5 8-8"/><path d="m2 22 6-6"/></svg>
+        <svg id="ico-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>
+        <svg id="ico-block" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8"/><path d="M8 13h8"/><path d="M8 17h5"/></svg>
+        <svg id="ico-zap" viewBox="0 0 24 24"><path d="m13 2-9 12h8l-1 8 9-12h-8Z"/></svg>
+        <svg id="ico-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
     </div>
 
-    <div id="workspace">
-        <div id="terminal-wrapper">
-            <div class="terminal-toolbar">
-                <div class="toolbar-title"><span>󰆍</span> CLI</div>
-                <button class="btn" onclick="executeMacro('getbalance')">󰇱 Saldo</button>
-                <button class="btn" onclick="executeMacro('getnewaddress')">󰌌 Novo Endereço</button>
-                <button class="btn btn-primary" onclick="mineBlockMacro()">󰜎 Forjar 1 Bloco</button>
-                <div style="width: 1px; height: 1.5rem; background: var(--glass-border); margin: 0 0.5rem;"></div>
-                <button class="btn btn-danger" onclick="clearTerminal()">󰃢 Limpar</button>
-            </div>
-            <main id="terminal-container"></main>
-        </div>
-        
-        <aside id="sidebar">
-            <div class="sidebar-header">
-                <span>󰄴</span> Consenso: Timeline
-            </div>
-            <div id="block-feed"></div>
-        </aside>
+    <div class="ide-shell">
+        <header class="ide-topbar">
+            <div class="ide-brand"><svg class="icon"><use href="#ico-cube"></use></svg>coreCraft</div>
+            <div class="ide-command"><svg class="icon"><use href="#ico-search"></use></svg><span>bitcoin-cli getblockchaininfo</span></div>
+            <div class="ide-operator"><span id="conn-status" class="ide-status-pill">INICIANDO</span><span>developer@corecraft</span></div>
+        </header>
+
+        <section class="ide-workspace">
+            <nav class="ide-activitybar" aria-label="Navegacao principal">
+                <button class="icon-btn active" type="button" data-view="explorer" data-tip="Explorer" aria-label="Abrir explorer de redes"><svg class="icon"><use href="#ico-cube"></use></svg></button>
+                <button class="icon-btn" type="button" data-view="search" data-tip="Busca" aria-label="Abrir busca"><svg class="icon"><use href="#ico-search"></use></svg></button>
+                <button class="icon-btn" type="button" data-view="flows" data-tip="Fluxos" aria-label="Abrir fluxos"><svg class="icon"><use href="#ico-git"></use></svg></button>
+                <button class="icon-btn" type="button" data-view="run" data-tip="Execucao" aria-label="Abrir execucao de macros"><svg class="icon"><use href="#ico-play"></use></svg></button>
+                <button class="icon-btn" type="button" data-view="settings" data-tip="Ajustes" aria-label="Abrir ajustes visuais"><svg class="icon"><use href="#ico-settings"></use></svg></button>
+            </nav>
+
+            <aside class="ide-sidebar">
+                <div class="ide-panel-title"><span id="side-title">Redes</span><svg class="icon"><use href="#ico-database"></use></svg></div>
+
+                <div class="side-panel active" data-panel="explorer">
+                    <div class="ide-networks">
+                        <button class="net-btn btn-main" type="button" data-network="mainnet" data-open-view="terminal" data-open-tab="mainnet" onclick="switchNet('mainnet')">
+                            <span class="net-dot"></span>
+                            <span class="net-label"><strong>mainnet</strong><small>pruned sync</small></span>
+                            <svg class="icon"><use href="#ico-zap"></use></svg>
+                        </button>
+                        <button class="net-btn btn-sig" type="button" data-network="signet" data-open-view="terminal" data-open-tab="signet" onclick="switchNet('signet')">
+                            <span class="net-dot"></span>
+                            <span class="net-label"><strong>signet</strong><small>sincronizada</small></span>
+                            <svg class="icon"><use href="#ico-block"></use></svg>
+                        </button>
+                        <button class="net-btn btn-reg active" type="button" data-network="regtest" data-open-view="terminal" data-open-tab="regtest" onclick="switchNet('regtest')">
+                            <span class="net-dot"></span>
+                            <span class="net-label"><strong>regtest</strong><small>wallet corecraft</small></span>
+                            <svg class="icon"><use href="#ico-terminal"></use></svg>
+                        </button>
+                        <button class="net-btn" type="button" data-open-view="docs" data-open-tab="docs">
+                            <span class="net-dot" style="background: var(--text-muted);"></span>
+                            <span class="net-label"><strong>docs</strong><small>arquitetura</small></span>
+                            <svg class="icon"><use href="#ico-info"></use></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="side-panel" data-panel="search">
+                    <div class="tool-list">
+                        <input class="tool-input" id="search-input" type="search" placeholder="Buscar comando, bloco ou tx">
+                        <div class="tool-item"><svg class="icon"><use href="#ico-terminal"></use></svg><span><strong>getblockchaininfo</strong><small>rpc.response</small></span><small>cmd</small></div>
+                        <div class="tool-item"><svg class="icon"><use href="#ico-database"></use></svg><span><strong>getmempoolinfo</strong><small>mempool.status</small></span><small>cmd</small></div>
+                        <div class="tool-item"><svg class="icon"><use href="#ico-block"></use></svg><span><strong>block_rich</strong><small>timeline visual</small></span><small>evt</small></div>
+                    </div>
+                </div>
+
+                <div class="side-panel" data-panel="flows">
+                    <div class="tool-list">
+                        <div class="tool-item"><svg class="icon"><use href="#ico-git"></use></svg><span><strong>Sincronizar wallet</strong><small>loadwallet -> getbalance</small></span><small>3</small></div>
+                        <div class="tool-item"><svg class="icon"><use href="#ico-hammer"></use></svg><span><strong>Minerar bloco</strong><small>getnewaddress -> generate</small></span><small>2</small></div>
+                        <div class="tool-item"><svg class="icon"><use href="#ico-zap"></use></svg><span><strong>Auditar mempool</strong><small>getmempoolinfo -> rawtx</small></span><small>4</small></div>
+                    </div>
+                </div>
+
+                <div class="side-panel" data-panel="run">
+                    <div class="tool-list">
+                        <select class="tool-select" id="macro-select">
+                            <option value="getblockchaininfo">getblockchaininfo</option>
+                            <option value="getmempoolinfo">getmempoolinfo</option>
+                            <option value="getnewaddress">getnewaddress</option>
+                            <option value="getbalance">getbalance</option>
+                        </select>
+                        <button class="theme-button" id="run-selected" type="button"><svg class="icon"><use href="#ico-play"></use></svg><span>Executar</span></button>
+                        <div class="tool-item"><svg class="icon"><use href="#ico-terminal"></use></svg><span><strong>Terminal</strong><small id="run-active-network">regtest ativo</small></span><small>online</small></div>
+                    </div>
+                </div>
+
+                <div class="side-panel" data-panel="settings">
+                    <div class="tool-list">
+                        <div class="settings-nav" aria-label="Navegacao de ajustes">
+                            <button class="settings-nav-button active" type="button" data-settings-target="preset"><span>Preset</span></button>
+                            <button class="settings-nav-button" type="button" data-settings-target="font"><span>Fonte</span></button>
+                            <button class="settings-nav-button" type="button" data-settings-target="colors"><span>Cores</span></button>
+                            <button class="settings-nav-button" type="button" data-settings-target="interface"><span>Interface</span></button>
+                        </div>
+
+                        <div class="settings-group active" data-settings-section="preset">
+                            <div class="settings-title"><span>Preset</span><strong>Tema</strong></div>
+                            <div class="settings-summary">Escolha um pacote visual inicial para cores, contraste e densidade.</div>
+                            <div class="settings-body">
+                                <button class="theme-button active" type="button" data-theme-preset="corecraft"><span>coreCraft Dark</span></button>
+                                <button class="theme-button" type="button" data-theme-preset="contrast"><span>Alto Contraste</span></button>
+                                <button class="theme-button" type="button" data-theme-preset="amber"><span>Amber Node</span></button>
+                            </div>
+                        </div>
+
+                        <div class="settings-group" data-settings-section="font">
+                            <div class="settings-title"><span>Fonte</span><strong>NF</strong></div>
+                            <div class="settings-summary">Selecione a familia mono usada por terminal, cards e labels.</div>
+                            <div class="settings-body">
+                                <select class="tool-select" id="font-select">
+                                    <option value='"JetBrains Mono", monospace'>JetBrains Mono</option>
+                                    <option value='"JetBrainsMono Nerd Font", "JetBrains Mono", monospace'>JetBrainsMono Nerd Font</option>
+                                    <option value='"MesloLGS NF", "MesloLGS Nerd Font", monospace'>MesloLGS NF</option>
+                                    <option value='"FiraCode Nerd Font", "Fira Code", monospace'>FiraCode Nerd Font</option>
+                                    <option value='"Hack Nerd Font", Hack, monospace'>Hack Nerd Font</option>
+                                    <option value='"CaskaydiaCove Nerd Font", "Cascadia Code", monospace'>CaskaydiaCove Nerd Font</option>
+                                </select>
+                                <div class="font-preview"><span>developer@regtest</span><code>nf: e0b0 f013</code></div>
+                            </div>
+                        </div>
+
+                        <div class="settings-group" data-settings-section="colors">
+                            <div class="settings-title"><span>Cores</span><strong>CSS</strong></div>
+                            <div class="settings-summary">Edite variaveis principais e veja o tema mudar em tempo real.</div>
+                            <div class="settings-body color-grid">
+                                <label class="setting-label"><span>Fundo</span><input class="color-input" type="color" data-theme-var="--ide-bg" value="#0d1117"></label>
+                                <label class="setting-label"><span>Topo</span><input class="color-input" type="color" data-theme-var="--ide-top" value="#0a0f16"></label>
+                                <label class="setting-label"><span>Painel</span><input class="color-input" type="color" data-theme-var="--ide-panel" value="#161b22"></label>
+                                <label class="setting-label"><span>Card</span><input class="color-input" type="color" data-theme-var="--ide-panel-soft" value="#111722"></label>
+                                <label class="setting-label"><span>Borda</span><input class="color-input" type="color" data-theme-var="--ide-border" value="#30363d"></label>
+                                <label class="setting-label"><span>Texto</span><input class="color-input" type="color" data-theme-var="--text-primary" value="#e2e8f0"></label>
+                                <label class="setting-label"><span>Muted</span><input class="color-input" type="color" data-theme-var="--text-muted" value="#64748b"></label>
+                                <label class="setting-label"><span>Accent</span><input class="color-input" type="color" data-theme-var="--accent-reg" value="#00e5ff"></label>
+                                <label class="setting-label"><span>Hover</span><input class="color-input" type="color" data-theme-var="--ide-hover" value="#182130"></label>
+                                <label class="setting-label"><span>Status</span><input class="color-input" type="color" data-theme-var="--ide-status-bg" value="#0e639c"></label>
+                            </div>
+                        </div>
+
+                        <div class="settings-group" data-settings-section="interface">
+                            <div class="settings-title"><span>Interface</span><strong>UI</strong></div>
+                            <div class="settings-summary">Controle exibicao, fixacao e reset das preferencias visuais.</div>
+                            <div class="settings-body">
+                                <div class="setting-row"><span>Compactar timeline</span><span class="toggle active"></span></div>
+                                <div class="setting-row"><span>Fixar terminal</span><span class="toggle active"></span></div>
+                                <div class="setting-row"><span>Mostrar mainnet</span><span class="toggle active"></span></div>
+                                <button class="theme-button" id="reset-theme" type="button"><span>Restaurar tema</span></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <div class="resize-handle vertical" data-resize="sidebar" aria-hidden="true"></div>
+
+            <main class="ide-main">
+                <div class="ide-tabs" role="tablist" aria-label="Terminais">
+                    <button class="ide-tab" type="button" data-network="mainnet" data-tab="mainnet" data-open-view="terminal" onclick="switchNet('mainnet')"><svg class="icon"><use href="#ico-zap"></use></svg><span>mainnet</span></button>
+                    <button class="ide-tab" type="button" data-network="signet" data-tab="signet" data-open-view="terminal" onclick="switchNet('signet')"><svg class="icon"><use href="#ico-block"></use></svg><span>signet</span></button>
+                    <button class="ide-tab active" type="button" data-network="regtest" data-tab="regtest" data-open-view="terminal" onclick="switchNet('regtest')"><svg class="icon"><use href="#ico-terminal"></use></svg><span>regtest</span></button>
+                    <button class="ide-tab" type="button" data-tab="docs" data-open-view="docs"><svg class="icon"><use href="#ico-info"></use></svg><span>docs</span></button>
+                </div>
+
+                <section class="content">
+                    <div id="mempool-metrics">
+                        <div class="metric-card" id="card-tx">
+                            <div class="metric-info">
+                                <span class="metric-title">Progresso / Blocos</span>
+                                <span class="metric-value" id="v-tx">0</span>
+                            </div>
+                            <div class="metric-icon"><svg class="icon"><use href="#ico-block"></use></svg></div>
+                        </div>
+                        <div class="metric-card" id="card-size">
+                            <div class="metric-info">
+                                <span class="metric-title">Peso no Disco</span>
+                                <span class="metric-value" id="v-size">0 B</span>
+                            </div>
+                            <div class="metric-icon"><svg class="icon"><use href="#ico-database"></use></svg></div>
+                        </div>
+                        <div class="metric-card" id="card-fee">
+                            <div class="metric-info">
+                                <span class="metric-title">Taxas Acumuladas</span>
+                                <span class="metric-value" id="v-fee">0.00000000</span>
+                            </div>
+                            <div class="metric-icon"><svg class="icon"><use href="#ico-zap"></use></svg></div>
+                        </div>
+                    </div>
+
+                    <div class="work-area">
+                        <article class="editor-card">
+                            <div class="card-head"><span id="editor-title">rpc.response</span><span class="ok" id="editor-status">online</span></div>
+                            <div class="rpc-view editor-view active" data-editor-view="terminal">
+                                <div class="line"><span class="ln">1</span><span>{</span></div>
+                                <div class="line"><span class="ln">2</span><span>&nbsp;&nbsp;<span class="prop">"chain"</span>: <span class="str" id="rpc-chain-label">"regtest"</span>,</span></div>
+                                <div class="line"><span class="ln">3</span><span>&nbsp;&nbsp;<span class="prop">"blocks"</span>: <span class="num" id="rpc-blocks-label">0</span>,</span></div>
+                                <div class="line"><span class="ln">4</span><span>&nbsp;&nbsp;<span class="prop">"wallet"</span>: <span class="str">"corecraft"</span>,</span></div>
+                                <div class="line"><span class="ln">5</span><span>&nbsp;&nbsp;<span class="prop">"ibd"</span>: <span class="kw">false</span></span></div>
+                                <div class="line"><span class="ln">6</span><span>}</span></div>
+                            </div>
+                            <div class="docs-main-view editor-view" data-editor-view="docs">
+                                <div class="doc-hero">
+                                    <strong>Documentacao coreCraft</strong>
+                                    <p>Area de leitura para guias, arquitetura e operacoes do ambiente multi-node.</p>
+                                </div>
+                                <div class="doc-grid">
+                                    <div class="doc-card"><strong>Arquitetura</strong><small>Servicos Django, WebSocket, ZMQ listener, Redis e Bitcoin Core.</small></div>
+                                    <div class="doc-card"><strong>Comandos</strong><small>Macros RPC, comandos seguros por rede e exemplos para laboratorio.</small></div>
+                                    <div class="doc-card"><strong>Fluxos</strong><small>Wallet, mineracao regtest, auditoria de mempool e sincronizacao.</small></div>
+                                    <div class="doc-card"><strong>Operacao</strong><small>Auth token, Docker, bitcoind, logs, troubleshooting e checklist.</small></div>
+                                </div>
+                            </div>
+                        </article>
+
+                        <div class="quick-actions">
+                            <button class="quick-action" type="button" onclick="executeMacro('getblockchaininfo')" title="Info da rede"><svg class="icon"><use href="#ico-info"></use></svg><span>Info</span></button>
+                            <button class="quick-action" type="button" onclick="executeMacro('getmempoolinfo')" title="Mempool"><svg class="icon"><use href="#ico-database"></use></svg><span>Mempool</span></button>
+                            <button class="quick-action" id="content-address-btn" type="button" onclick="executeMacro('getnewaddress')" title="Novo endereco"><svg class="icon"><use href="#ico-wallet"></use></svg><span>Wallet</span></button>
+                            <button class="quick-action" id="content-mine-btn" type="button" onclick="mineBlockMacro()" title="Forjar bloco"><svg class="icon"><use href="#ico-hammer"></use></svg><span>Minerar</span></button>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="resize-handle horizontal" data-resize="terminal" aria-hidden="true"></div>
+
+                <section id="workspace" class="terminal-panel">
+                    <div id="terminal-wrapper">
+                        <div class="terminal-toolbar">
+                            <div class="toolbar-title"><svg class="icon"><use href="#ico-terminal"></use></svg><span>CLI</span><span class="ide-network-state" id="active-network-name">REGTEST</span></div>
+                            <div class="ide-actions">
+                                <button class="btn" id="balance-btn" type="button" data-tip="Saldo" aria-label="Consultar saldo regtest" onclick="executeMacro('getbalance')"><svg class="icon"><use href="#ico-wallet"></use></svg></button>
+                                <button class="btn" id="address-btn" type="button" data-tip="Novo endereco" aria-label="Gerar novo endereco regtest" onclick="executeMacro('getnewaddress')"><svg class="icon"><use href="#ico-wallet"></use></svg></button>
+                                <button class="btn" type="button" data-tip="Info da rede" aria-label="Consultar informacoes da rede" onclick="executeMacro('getblockchaininfo')"><svg class="icon"><use href="#ico-info"></use></svg></button>
+                                <button class="btn" id="mine-btn" type="button" data-tip="Forjar 1 bloco" aria-label="Forjar um bloco em regtest" onclick="mineBlockMacro()" style="border-color: rgba(247, 147, 26, 0.5); color: var(--accent-main);"><svg class="icon"><use href="#ico-hammer"></use></svg></button>
+                                <div class="toolbar-separator"></div>
+                                <button class="btn btn-danger" type="button" data-tip="Limpar terminal" aria-label="Limpar terminal ativo" onclick="clearActiveTerminal()"><svg class="icon"><use href="#ico-trash"></use></svg></button>
+                            </div>
+                        </div>
+                        <section id="terminal-container">
+                            <div id="term-mainnet" class="term-panel"></div>
+                            <div id="term-signet" class="term-panel"></div>
+                            <div id="term-regtest" class="term-panel active"></div>
+                        </section>
+                    </div>
+                </section>
+            </main>
+
+            <div class="resize-handle vertical" data-resize="right" aria-hidden="true"></div>
+
+            <aside class="ide-rightbar" id="sidebar">
+                <div class="sidebar-header">
+                    <span>Timeline</span>
+                    <svg class="icon"><use href="#ico-zap"></use></svg>
+                </div>
+                <div id="block-feed"></div>
+            </aside>
+        </section>
+
+        <footer class="statusbar">
+            <div class="status-left"><span id="rpc-status-label">RPC aguardando</span><span id="ws-status-label">WebSocket iniciando</span></div>
+            <div class="status-right"><span id="status-network-name">REGTEST</span><span>UTF-8</span></div>
+        </footer>
     </div>
 
-    <script>
-        const term = new Terminal({
-            cursorBlink: true,
-            theme: { 
-                background: 'transparent', 
-                foreground: '#e2e8f0', 
-                cursor: '#f7931a', 
-                selectionBackground: 'rgba(247, 147, 26, 0.3)' 
+    <section id="login-overlay" class="hidden" aria-modal="true" role="dialog">
+        <form class="login-panel" id="login-form">
+            <div class="login-title">Acesso coreCraft</div>
+            <div class="login-subtitle">Informe o token configurado em APP_AUTH_TOKEN para liberar o painel, terminal RPC e eventos em tempo real.</div>
+            <input class="login-input" id="login-token" type="password" autocomplete="current-password" spellcheck="false" placeholder="APP_AUTH_TOKEN">
+            <div class="login-actions">
+                <button class="btn login-submit" id="login-submit" type="submit">Entrar</button>
+            </div>
+        </form>
+    </section>
+
+	    <script>
+        const REQUIRE_AUTH = "{{ require_auth|yesno:'true,false' }}" === "true";
+        const AUTH_TOKEN_KEY = 'corecraft.authToken';
+        const legacyStoredToken = localStorage.getItem(AUTH_TOKEN_KEY) || "";
+        let currentNet = 'regtest';
+        const networks = ['mainnet', 'signet', 'regtest'];
+        const terminals = {};
+        const inputs = { mainnet: "", signet: "", regtest: "" };
+        const cmdHistory = { mainnet: [], signet: [], regtest: [] };
+        const historyIdx = { mainnet: -1, signet: -1, regtest: -1 };
+        const REGTEST_WALLET = 'corecraft';
+        let authToken = "";
+        let authReady = !REQUIRE_AUTH;
+        let socket = null;
+        let wsReconnectTimer = null;
+        let statusTimer = null;
+        let appStarted = false;
+        const root = document.documentElement;
+        const workspaceShell = document.querySelector('.ide-workspace');
+        const sideTitle = document.getElementById('side-title');
+        const panelNames = {
+            explorer: 'Redes',
+            search: 'Busca',
+            flows: 'Fluxos',
+            run: 'Execucao',
+            settings: 'Ajustes'
+        };
+        const THEME_KEY = 'corecraft.uiTheme';
+        const FONT_KEY = 'corecraft.uiFont';
+        const DEFAULT_FONT = '"JetBrains Mono", monospace';
+        const themePresets = {
+            corecraft: {
+                '--ide-bg': '#0d1117',
+                '--ide-top': '#0a0f16',
+                '--ide-panel': '#161b22',
+                '--ide-panel-soft': '#111722',
+                '--ide-border': '#30363d',
+                '--ide-blue': '#58a6ff',
+                '--ide-hover': '#182130',
+                '--ide-tab-bg': '#0f141b',
+                '--ide-terminal-bg': '#05080d',
+                '--ide-status-bg': '#0e639c',
+                '--text-primary': '#e2e8f0',
+                '--text-muted': '#64748b',
+                '--accent-reg': '#00e5ff',
+                '--green': '#10b981',
+                '--scroll-track': '#0a0f16',
+                '--scroll-thumb': '#30363d',
+                '--scroll-thumb-hover': '#58a6ff'
             },
-            fontFamily: '"JetBrains Mono", monospace',
-            fontSize: 14,
-            lineHeight: 1.4
-        });
-
-        term.open(document.getElementById('terminal-container'));
-        
-        function printWelcome() {
-            term.writeln('\x1b[1;33mdeveloper corecraft | v2.1.0\x1b[0m');
-            term.writeln('\x1b[38;5;242mDigite \x1b[1;36mhelp\x1b[38;5;242m para listar os comandos ou use os atalhos acima.\x1b[0m\r\n');
-            prompt();
-        }
-
-        function prompt() { term.write('\x1b[1;32mdeveloper@corecraft\x1b[0m:\x1b[1;34m~\x1b[0m$ '); }
-
-        printWelcome();
-
-        const socket = new WebSocket('ws://' + window.location.host + '/ws/btc/');
-
-        socket.onmessage = function(e) {
-            const data = JSON.parse(e.data);
-            const ts = new Date().toLocaleTimeString();
-            
-            if (data.topic === 'rawblock') {
-                term.write(`\r\n\x1b[1;32m[${ts}] 󰄴 ZMQ: BLOCO MINERADO | Seq: ${data.sequence}\x1b[0m`);
-                addBlockToFeed(data.size, data.sequence, ts);
-            } else if (data.topic === 'rawtx') {
-                term.write(`\r\n\x1b[38;5;242m[${ts}] 󱓞 ZMQ: TX RECEBIDA  | Size: ${data.size}b\x1b[0m`);
+            contrast: {
+                '--ide-bg': '#050505',
+                '--ide-top': '#000000',
+                '--ide-panel': '#101010',
+                '--ide-panel-soft': '#161616',
+                '--ide-border': '#6b7280',
+                '--ide-blue': '#60a5fa',
+                '--ide-hover': '#1f2937',
+                '--ide-tab-bg': '#0a0a0a',
+                '--ide-terminal-bg': '#000000',
+                '--ide-status-bg': '#075985',
+                '--text-primary': '#f8fafc',
+                '--text-muted': '#cbd5e1',
+                '--accent-reg': '#22d3ee',
+                '--green': '#4ade80',
+                '--scroll-track': '#000000',
+                '--scroll-thumb': '#64748b',
+                '--scroll-thumb-hover': '#22d3ee'
+            },
+            amber: {
+                '--ide-bg': '#11100c',
+                '--ide-top': '#0b0a08',
+                '--ide-panel': '#191711',
+                '--ide-panel-soft': '#211d13',
+                '--ide-border': '#4b3b22',
+                '--ide-blue': '#7dd3fc',
+                '--ide-hover': '#2b2418',
+                '--ide-tab-bg': '#15120c',
+                '--ide-terminal-bg': '#070604',
+                '--ide-status-bg': '#92400e',
+                '--text-primary': '#eee7d2',
+                '--text-muted': '#a99b82',
+                '--accent-reg': '#f59e0b',
+                '--green': '#84cc16',
+                '--scroll-track': '#0b0a08',
+                '--scroll-thumb': '#4b3b22',
+                '--scroll-thumb-hover': '#f59e0b'
             }
-            term.write('\r\n');
-            prompt();
-            term.write(currLine);
         };
 
-        function addBlockToFeed(size, sequence, time) {
+        const autoCommands = ['getblockchaininfo', 'getmempoolinfo', 'getnewaddress', 'getbalance', 'generatetoaddress', 'sendtoaddress', 'getblock', 'getblockhash', 'help', 'clear'];
+
+        networks.forEach(net => {
+            const t = new Terminal({
+                cursorBlink: true,
+                theme: { background: 'transparent', foreground: '#e2e8f0', cursor: '#f7931a', selectionBackground: 'rgba(247, 147, 26, 0.3)' },
+                fontFamily: '"JetBrains Mono", monospace',
+                fontSize: 14,
+                lineHeight: 1.4
+            });
+
+            t.open(document.getElementById(`term-${net}`));
+            t.writeln('\x1b[1;33mdeveloper corecraft | v3.0 Multi-Node\x1b[0m');
+            t.writeln(`\x1b[38;5;242mInstância Conectada: \x1b[1;36m${net.toUpperCase()}\x1b[0m\r\n`);
+            writePrompt(t, net);
+
+            t.onData(e => {
+                if (currentNet !== net) return;
+
+                if (e === '\r') {
+                    const cmd = inputs[net].trim();
+                    if (cmd) {
+                        t.write('\r\n');
+                        cmdHistory[net].unshift(cmd);
+                        if (cmdHistory[net].length > 50) cmdHistory[net].pop();
+                        historyIdx[net] = -1;
+
+                        if (cmd === 'clear') {
+                            t.clear();
+                            t.writeln('\x1b[1;33mdeveloper corecraft | v3.0 Multi-Node\x1b[0m');
+                            t.writeln(`\x1b[38;5;242mInstância Conectada: \x1b[1;36m${net.toUpperCase()}\x1b[0m\r\n`);
+                            writePrompt(t, net);
+                        } else {
+                            processCommand(net, cmd);
+                        }
+                        inputs[net] = "";
+                    } else {
+                        t.write('\r\n');
+                        writePrompt(t, net);
+                    }
+                } else if (e === '\u007F') {
+                    if (inputs[net].length > 0) {
+                        inputs[net] = inputs[net].slice(0, -1);
+                        t.write('\b \b');
+                    }
+                } else if (e === '\x1b[A') {
+                    if (cmdHistory[net].length > 0 && historyIdx[net] < cmdHistory[net].length - 1) {
+                        historyIdx[net]++;
+                        clearLine(t, inputs[net]);
+                        inputs[net] = cmdHistory[net][historyIdx[net]];
+                        t.write(inputs[net]);
+                    }
+                } else if (e === '\x1b[B') {
+                    if (historyIdx[net] > 0) {
+                        historyIdx[net]--;
+                        clearLine(t, inputs[net]);
+                        inputs[net] = cmdHistory[net][historyIdx[net]];
+                        t.write(inputs[net]);
+                    } else if (historyIdx[net] === 0) {
+                        historyIdx[net] = -1;
+                        clearLine(t, inputs[net]);
+                        inputs[net] = "";
+                    }
+                } else if (e === '\t') {
+                    const matches = autoCommands.filter(c => c.startsWith(inputs[net]));
+                    if (matches.length === 1) {
+                        clearLine(t, inputs[net]);
+                        inputs[net] = matches[0] + " ";
+                        t.write(inputs[net]);
+                    } else if (matches.length > 1) {
+                        t.write('\r\n' + matches.join('  ') + '\r\n');
+                        writePrompt(t, net);
+                        t.write(inputs[net]);
+                    }
+                } else if (e >= " " && e <= "~") {
+                    inputs[net] += e;
+                    t.write(e);
+                }
+            });
+            terminals[net] = t;
+        });
+
+        function clearLine(t, currentInput) {
+            t.write('\b \b'.repeat(currentInput.length));
+        }
+
+        function writePrompt(t, net) {
+            t.write(`\x1b[1;32mdeveloper@${net}\x1b[0m:\x1b[1;34m~\x1b[0m$ `);
+        }
+
+        function clamp(value, min, max) {
+            return Math.min(Math.max(value, min), max);
+        }
+
+        function selectMainView(view, tabName = currentNet) {
+            document.querySelectorAll('[data-editor-view]').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.editorView === view);
+            });
+            document.querySelectorAll('.ide-tab').forEach(tab => {
+                const isActive = tab.dataset.tab === tabName;
+                tab.classList.toggle('active', isActive);
+            });
+            document.querySelectorAll('[data-open-tab]').forEach(item => {
+                item.classList.toggle('active', item.dataset.openTab === tabName);
+            });
+
+            const command = document.querySelector('.ide-command span');
+            if (command) {
+                command.textContent = view === 'docs' ? 'docs arquitetura' : `${tabName} getblockchaininfo`;
+            }
+
+            const title = document.getElementById('editor-title');
+            const status = document.getElementById('editor-status');
+            if (title) title.textContent = view === 'docs' ? 'docs.viewer' : 'rpc.response';
+            if (status) status.textContent = view === 'docs' ? 'preview' : (tabName === 'mainnet' ? 'sync' : 'online');
+
+            if (view === 'terminal' && terminals[tabName]) {
+                setTimeout(() => terminals[tabName].focus(), 40);
+            }
+        }
+
+        function selectSidePanel(view) {
+            document.querySelectorAll('[data-view]').forEach(button => {
+                button.classList.toggle('active', button.dataset.view === view);
+            });
+            document.querySelectorAll('[data-panel]').forEach(panel => {
+                panel.classList.toggle('active', panel.dataset.panel === view);
+            });
+            if (sideTitle) sideTitle.textContent = panelNames[view] || 'Painel';
+            if (window.matchMedia('(max-width: 820px)').matches) {
+                workspaceShell.classList.add('mobile-sidebar-open');
+            }
+        }
+
+        function selectSettingsSection(section) {
+            document.querySelectorAll('[data-settings-section]').forEach(group => {
+                group.classList.toggle('active', group.dataset.settingsSection === section);
+            });
+            document.querySelectorAll('[data-settings-target]').forEach(button => {
+                button.classList.toggle('active', button.dataset.settingsTarget === section);
+            });
+        }
+
+        function applyTheme(values, presetName = '') {
+            Object.entries(values).forEach(([property, value]) => {
+                root.style.setProperty(property, value);
+            });
+            document.querySelectorAll('[data-theme-var]').forEach(input => {
+                const value = values[input.dataset.themeVar] || getComputedStyle(root).getPropertyValue(input.dataset.themeVar).trim();
+                if (value) input.value = value;
+            });
+            document.querySelectorAll('[data-theme-preset]').forEach(button => {
+                button.classList.toggle('active', button.dataset.themePreset === presetName);
+            });
+        }
+
+        function saveCustomTheme() {
+            const values = {};
+            document.querySelectorAll('[data-theme-var]').forEach(input => {
+                values[input.dataset.themeVar] = input.value;
+            });
+            localStorage.setItem(THEME_KEY, JSON.stringify({ preset: 'custom', values }));
+        }
+
+        function loadTheme() {
+            const saved = localStorage.getItem(THEME_KEY);
+            if (!saved) {
+                applyTheme(themePresets.corecraft, 'corecraft');
+                return;
+            }
+
+            try {
+                const data = JSON.parse(saved);
+                if (data.preset && themePresets[data.preset]) {
+                    applyTheme(themePresets[data.preset], data.preset);
+                    return;
+                }
+                if (data.values) {
+                    applyTheme(data.values, '');
+                    return;
+                }
+            } catch (err) {}
+
+            applyTheme(themePresets.corecraft, 'corecraft');
+        }
+
+        function updateTerminalFont(fontFamily) {
+            Object.values(terminals).forEach(t => {
+                t.options.fontFamily = fontFamily;
+            });
+        }
+
+        function loadFont() {
+            const savedFont = localStorage.getItem(FONT_KEY) || DEFAULT_FONT;
+            root.style.setProperty('--font-mono', savedFont);
+            updateTerminalFont(savedFont);
+
+            const fontSelect = document.getElementById('font-select');
+            if (fontSelect) {
+                const hasOption = [...fontSelect.options].some(option => option.value === savedFont);
+                fontSelect.value = hasOption ? savedFont : DEFAULT_FONT;
+            }
+        }
+
+        function blockCardMarkup({ title, status, hash, tx, size, fees, source, time, icon = 'ico-block' }) {
+            const safe = {
+                title: escapeHtml(title),
+                status: escapeHtml(status),
+                hash: escapeHtml(hash),
+                tx: escapeHtml(tx),
+                size: escapeHtml(size),
+                fees: escapeHtml(fees),
+                source: escapeHtml(source),
+                time: escapeHtml(time),
+                icon: String(icon).replace(/[^a-z0-9_-]/gi, '') || 'ico-block'
+            };
+            return `
+                <div class="block-visual">
+                    <div class="block-head">
+                        <div class="block-height"><svg class="icon"><use href="#${safe.icon}"></use></svg><span>${safe.title}</span></div>
+                        <span class="block-pill">${safe.status}</span>
+                    </div>
+                    <div class="block-hash">
+                        <label>hash</label>
+                        <code>${safe.hash}</code>
+                    </div>
+                    <div class="block-stats">
+                        <div class="block-stat"><label>tx</label><strong>${safe.tx}</strong></div>
+                        <div class="block-stat"><label>peso</label><strong>${safe.size}</strong></div>
+                        <div class="block-stat"><label>taxas</label><strong>${safe.fees}</strong></div>
+                    </div>
+                    <div class="block-route"><span>${safe.source}</span><strong>${safe.time}</strong></div>
+                </div>
+            `;
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            })[char]);
+        }
+
+        function switchNet(net) {
+            currentNet = net;
+            selectMainView('terminal', net);
+            document.querySelectorAll('.net-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.network === net);
+            });
+            document.querySelectorAll('.ide-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.network === net);
+            });
+
+            const color = net === 'mainnet' ? 'var(--accent-main)' : net === 'signet' ? 'var(--accent-sig)' : 'var(--accent-reg)';
+            document.querySelectorAll('.metric-card').forEach(c => c.style.borderLeftColor = color);
+            document.getElementById('mine-btn').style.display = net === 'regtest' ? 'grid' : 'none';
+            document.getElementById('balance-btn').style.display = net === 'regtest' ? 'grid' : 'none';
+            document.getElementById('address-btn').style.display = net === 'regtest' ? 'grid' : 'none';
+            const contentMineBtn = document.getElementById('content-mine-btn');
+            const contentAddressBtn = document.getElementById('content-address-btn');
+            if (contentMineBtn) contentMineBtn.style.display = net === 'regtest' ? 'grid' : 'none';
+            if (contentAddressBtn) contentAddressBtn.style.display = net === 'regtest' ? 'grid' : 'none';
+            updateCommandAvailability(net);
+
+            const upperNet = net.toUpperCase();
+            const activeLabel = document.getElementById('active-network-name');
+            const statusLabel = document.getElementById('status-network-name');
+            const runLabel = document.getElementById('run-active-network');
+            const rpcChainLabel = document.getElementById('rpc-chain-label');
+            if (activeLabel) activeLabel.innerText = upperNet;
+            if (statusLabel) statusLabel.innerText = upperNet;
+            if (runLabel) runLabel.innerText = `${net} ativo`;
+            if (rpcChainLabel) rpcChainLabel.innerText = `"${net}"`;
+
+            document.querySelectorAll('.term-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById(`term-${net}`).classList.add('active');
+
+            terminals[net].focus();
+            document.getElementById('block-feed').innerHTML = '';
+
+            fetchNodeStatus();
+            loadInitialBlocks();
+        }
+
+        function updateCommandAvailability(net) {
+            const walletOnlyCommands = new Set(['getnewaddress', 'getbalance']);
+            const macroSelect = document.getElementById('macro-select');
+            if (!macroSelect) return;
+
+            [...macroSelect.options].forEach(option => {
+                option.disabled = walletOnlyCommands.has(option.value) && net !== 'regtest';
+            });
+
+            if (macroSelect.selectedOptions[0] && macroSelect.selectedOptions[0].disabled) {
+                macroSelect.value = 'getblockchaininfo';
+            }
+        }
+
+        function clearActiveTerminal() {
+            const t = terminals[currentNet];
+            t.clear();
+            t.writeln('\x1b[1;33mdeveloper corecraft | v3.0 Multi-Node\x1b[0m');
+            t.writeln(`\x1b[38;5;242mInstância Conectada: \x1b[1;36m${currentNet.toUpperCase()}\x1b[0m\r\n`);
+            inputs[currentNet] = "";
+            writePrompt(t, currentNet);
+            t.focus();
+        }
+
+        function showToast(title, message, type = 'warn', timeout = 4200) {
+            const stack = document.getElementById('toast-stack');
+            if (!stack) return;
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const titleEl = document.createElement('div');
+            titleEl.className = 'toast-title';
+            titleEl.textContent = title;
+            const messageEl = document.createElement('div');
+            messageEl.className = 'toast-message';
+            messageEl.textContent = message;
+            toast.append(titleEl, messageEl);
+            stack.prepend(toast);
+            setTimeout(() => toast.remove(), timeout);
+        }
+
+        function showLogin(message) {
+            if (message) showToast('Acesso necessário', message, 'warn');
+            authReady = !REQUIRE_AUTH;
+            authToken = "";
+            if (statusTimer) {
+                clearInterval(statusTimer);
+                statusTimer = null;
+            }
+            if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) {
+                socket.close();
+            }
+            const overlay = document.getElementById('login-overlay');
+            const input = document.getElementById('login-token');
+            if (overlay) overlay.classList.remove('hidden');
+            if (input) {
+                input.value = "";
+                setTimeout(() => input.focus(), 50);
+            }
+            setConnectionStatus('BLOQUEADO', '#ef4444');
+        }
+
+        function hideLogin() {
+            const overlay = document.getElementById('login-overlay');
+            if (overlay) overlay.classList.add('hidden');
+        }
+
+        function authHeaders() {
+            const headers = { 'Content-Type': 'application/json' };
+            if (authToken) headers['X-CoreCraft-Token'] = authToken;
+            return headers;
+        }
+
+        function setConnectionStatus(label, color) {
+            const el = document.getElementById('conn-status');
+            const wsLabel = document.getElementById('ws-status-label');
+            if (el) {
+                el.innerText = label;
+                el.style.color = color;
+            }
+            if (wsLabel) {
+                wsLabel.innerText = `WebSocket ${label.toLowerCase()}`;
+            }
+        }
+
+        function websocketUrl() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            return wsProtocol + window.location.host + '/ws/btc/';
+        }
+
+        function scheduleSocketReconnect() {
+            if (REQUIRE_AUTH && !authReady) {
+                showLogin('Entre novamente para reconectar o WebSocket.');
+                return;
+            }
+            if (wsReconnectTimer) return;
+            setConnectionStatus('RECONECTANDO', 'var(--accent-main)');
+            wsReconnectTimer = setTimeout(() => {
+                wsReconnectTimer = null;
+                connectSocket();
+            }, 3000);
+        }
+
+        function connectSocket() {
+            if (REQUIRE_AUTH && !authReady) {
+                showLogin('Informe o token para iniciar o WebSocket.');
+                return;
+            }
+            if (socket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(socket.readyState)) return;
+
+            setConnectionStatus('CONECTANDO', 'var(--accent-main)');
+            socket = new WebSocket(websocketUrl());
+
+            socket.onopen = function() {
+                setConnectionStatus('ONLINE', 'var(--green)');
+            };
+
+            socket.onclose = function(e) {
+                if (e.code === 4401) {
+                    localStorage.removeItem(AUTH_TOKEN_KEY);
+                    authToken = "";
+                    authReady = false;
+                    showLogin('Token recusado pelo WebSocket.');
+                    return;
+                }
+                scheduleSocketReconnect();
+            };
+
+            socket.onerror = function() {
+                setConnectionStatus('ERRO', '#ef4444');
+                showToast('WebSocket', 'Nao foi possivel manter a conexao em tempo real.', 'error');
+                try { socket.close(); } catch (err) {}
+            };
+
+            socket.onmessage = handleSocketMessage;
+        }
+
+        /**
+         * Recebe eventos ZMQ publicados pelo backend e escreve no terminal da
+         * rede correspondente. Eventos de redes desconhecidas sao ignorados para
+         * evitar falhas caso o payload venha incompleto.
+         */
+        function handleSocketMessage(e) {
+            let d;
+            try {
+                d = JSON.parse(e.data);
+            } catch (err) {
+                showToast('WebSocket', 'Evento recebido em formato invalido.', 'error');
+                return;
+            }
+            const ts = new Date().toLocaleTimeString();
+            const t = terminals[d.network];
+            if (!t) return;
+
+            if (d.topic === 'rawblock' || d.topic === 'block_rich') {
+                t.writeln(`\r\n\x1b[1;32m[${ts}] ZMQ: BLOCO MINERADO | Seq: ${d.sequence}\x1b[0m`);
+                writePrompt(t, d.network);
+                t.write(inputs[d.network]);
+
+                if (d.network === currentNet) {
+                    addBlockToFeed(d, ts);
+                }
+            } else if (d.topic === 'rawtx') {
+                t.writeln(`\r\n\x1b[38;5;242m[${ts}] ZMQ: TX RECEBIDA  | Size: ${d.size}b\x1b[0m`);
+                writePrompt(t, d.network);
+                t.write(inputs[d.network]);
+            }
+        }
+
+        function addBlockToFeed(d, time) {
             const feed = document.getElementById('block-feed');
             const item = document.createElement('div');
             item.className = 'block-card';
-            
-            const sizeFormatted = size > 1024 ? (size/1024).toFixed(1) + ' KB' : size + ' B';
 
-            item.innerHTML = `
-                <div class="bc-icon">󰄴</div>
-                <div class="bc-data">
-                    <div class="bc-row">
-                        <span class="bc-seq">Bloco #${sequence}</span>
-                        <span class="bc-time">${time}</span>
-                    </div>
-                    <div class="bc-row">
-                        <span class="bc-size">${sizeFormatted}</span>
-                    </div>
-                </div>
-            `;
+            const size = Number(d.size || 0);
+            const fees = Number(d.fees || 0);
+            const txCount = d.tx_count || d.txCount || '-';
+            const sizeFormatted = size > 1024 ? (size/1024).toFixed(1) + ' KB' : `${size || 0} B`;
+            const feesFormatted = fees ? `${(fees / 100000000).toFixed(4)} BTC` : '0 sats';
+            const blockId = d.height ? `#${d.height}` : `Seq ${d.sequence}`;
+            const hash = d.hash || d.block_hash || d.bestblockhash || `seq-${d.sequence || 'unknown'}-${currentNet}`;
+
+            item.innerHTML = blockCardMarkup({
+                title: `Bloco ${blockId}`,
+                status: d.topic === 'block_rich' ? 'enriquecido' : 'novo',
+                hash,
+                tx: txCount,
+                size: sizeFormatted,
+                fees: feesFormatted,
+                source: d.topic || 'rawblock',
+                time
+            });
             feed.prepend(item);
         }
 
-        let currLine = "";
-        term.onData(e => {
-            switch (e) {
-                case '\r':
-                    const cmdToRun = currLine.trim();
-                    if (cmdToRun) {
-                        term.write('\r\n');
-                        if (cmdToRun === 'clear') {
-                            clearTerminal();
-                        } else {
-                            processCommand(cmdToRun);
-                        }
-                        currLine = "";
-                    } else {
-                        term.write('\r\n');
-                        prompt();
-                    }
-                    break;
-                case '\u007F':
-                    if (currLine.length > 0) {
-                        currLine = currLine.slice(0, -1);
-                        term.write('\b \b');
-                    }
-                    break;
-                default:
-                    if (e >= " " && e <= "~") {
-                        currLine += e;
-                        term.write(e);
-                    }
-            }
-        });
-
-        function clearTerminal() {
-            term.clear();
-            printWelcome();
-            currLine = "";
-        }
-
-        function formatHelpOutput(text) {
+        function formatHelpOutput(t, text) {
             const lines = text.split('\n');
             lines.forEach(line => {
                 if (line.startsWith('==')) {
-                    term.writeln(`\r\n\x1b[1;35m${line}\x1b[0m`); 
+                    t.writeln(`\r\n\x1b[1;35m${line}\x1b[0m`);
                 } else if (line.trim().length > 0) {
                     const parts = line.split(' ');
                     const cmd = parts.shift();
                     const rest = parts.join(' ');
-                    term.writeln(`  \x1b[1;36m${cmd}\x1b[0m \x1b[38;5;242m${rest}\x1b[0m`); 
+                    t.writeln(`  \x1b[1;36m${cmd}\x1b[0m \x1b[38;5;242m${rest}\x1b[0m`);
                 }
             });
         }
 
-        async function processCommand(cmd, silent = false) {
+	    async function processCommand(net, cmd, silent = false) {
+            const t = terminals[net];
+            const parts = cmd.toLowerCase().split(' ');
+            const rpcStatus = document.getElementById('rpc-status-label');
+
+            if (REQUIRE_AUTH && !authReady) {
+                if (!silent) {
+                    t.writeln('\x1b[31m[SISTEMA] Acesso bloqueado. Informe o token no login.\x1b[0m\r\n');
+                    writePrompt(t, net);
+                }
+                showLogin('Informe o token antes de executar comandos RPC.');
+                return { error: { message: 'Token ausente' } };
+            }
+
             try {
                 const response = await fetch('/terminal/', {
                     method: 'POST',
-                    body: JSON.stringify({ command: cmd }),
-                    headers: { 'Content-Type': 'application/json' }
+                    body: JSON.stringify({ command: parts[0] === 'help' ? 'help' : cmd, network: net }),
+                    headers: authHeaders(),
+                    credentials: 'same-origin'
                 });
-                const data = await response.json();
-                
+                if (response.status === 401) {
+                    localStorage.removeItem(AUTH_TOKEN_KEY);
+                    authToken = "";
+                    authReady = false;
+                    showLogin('Token invalido ou expirado. Informe o token novamente.');
+                    if (!silent) {
+                        t.writeln('\x1b[31m[SISTEMA] Token invalido ou ausente.\x1b[0m\r\n');
+                        writePrompt(t, net);
+                    }
+                    return { error: { message: 'Token invalido ou ausente' } };
+                }
+                const d = await response.json();
+                if (rpcStatus) {
+                    rpcStatus.innerText = d.error ? 'RPC com erro' : `RPC ${net} online`;
+                }
+
                 if (!silent) {
-                    if (data.error) {
-                        term.writeln(`\x1b[31m[ERRO] ${data.error.message || JSON.stringify(data.error)}\x1b[0m`);
+                    if (d.error) {
+                        t.writeln(`\x1b[31m[ERRO] ${d.error.message || JSON.stringify(d.error)}\x1b[0m`);
                     } else {
-                        
-                        if (cmd.trim() === 'help' && typeof data.result === 'string') {
-                            formatHelpOutput(data.result);
+                        let output = d.result;
+
+                        if (parts[0] === 'help' && parts.length > 1) {
+                            const category = parts[1];
+                            const lines = output.split('\n');
+                            let filtered = "";
+                            let capturing = false;
+
+                            for (let line of lines) {
+                                if (line.toLowerCase().includes(`== ${category}`)) { capturing = true; }
+                                else if (line.startsWith('==') && capturing) { capturing = false; }
+                                if (capturing) filtered += line + '\n';
+                            }
+                            output = filtered || `Categoria "${category}" não encontrada.`;
+                        }
+
+                        if (typeof output === 'string' && output.includes('==')) {
+                            formatHelpOutput(t, output);
                         } else {
-                            const output = typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result);
-                            output.split('\n').forEach(line => term.writeln(`\x1b[38;5;250m${line}\x1b[0m`));
+                            const strOut = typeof output === 'object' ? JSON.stringify(output, null, 2) : String(output);
+                            strOut.split('\n').forEach(l => t.writeln(`\x1b[38;5;250m${l}\x1b[0m`));
                         }
                     }
-                    term.write('\r\n');
-                    prompt();
+                    t.write('\r\n');
+                    writePrompt(t, net);
                 }
-                return data;
+                return d;
             } catch (err) {
-                if (!silent) {
-                    term.writeln('\x1b[31m[SISTEMA] Falha de comunicação.\x1b[0m\r\n');
-                    prompt();
-                }
+                if (rpcStatus) rpcStatus.innerText = 'RPC indisponivel';
+                showToast('Conexao', 'Falha ao comunicar com o backend.', 'error');
+                if (!silent) { t.writeln('\x1b[31m[SISTEMA] Falha de conexão.\x1b[0m\r\n'); writePrompt(t, net); }
                 return { error: err };
             }
         }
 
-        function executeMacro(cmd) {
-            term.write(cmd + '\r\n');
-            processCommand(cmd);
-        }
-
-        async function mineBlockMacro() {
-            term.write('generatetoaddress 1 [auto]\r\n');
-            term.writeln('\x1b[36m[SISTEMA] Gerando endereço de recompensa...\x1b[0m');
-            
-            const addrData = await processCommand('getnewaddress', true);
-            if (addrData.result) {
-                term.writeln('\x1b[36m[SISTEMA] Forjando bloco na rede...\x1b[0m');
-                await processCommand(`generatetoaddress 1 ${addrData.result}`, true);
-                term.write('\r\n');
-                prompt();
-            } else {
-                term.writeln('\x1b[31m[ERRO] Crie uma carteira (createwallet) primeiro.\x1b[0m\r\n');
-                prompt();
-            }
-        }
-
-        async function fetchMempoolState() {
+        async function fetchNodeStatus() {
             try {
-                const response = await fetch('/terminal/', {
-                    method: 'POST',
-                    body: JSON.stringify({ command: 'getmempoolinfo' }),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                const data = await response.json();
-                
-                if (!data.error && data.result) {
-                    updateDashboardValue('mp-txs', data.result.size);
-                    const sizeFormatted = data.result.bytes > 1024 ? (data.result.bytes/1024).toFixed(1) + ' KB' : data.result.bytes + ' B';
-                    updateDashboardValue('mp-size', sizeFormatted);
-                    updateDashboardValue('mp-fee', (data.result.total_fee || 0).toFixed(8));
+                const info = await processCommand(currentNet, 'getblockchaininfo', true);
+                if (info && info.result) {
+                    const progress = (info.result.verificationprogress * 100).toFixed(2);
+                    const sizeGB = (info.result.size_on_disk / 1024 / 1024 / 1024).toFixed(2);
+
+                    updateDashboardValue('v-tx', info.result.initialblockdownload ? `SYNC: ${progress}%` : info.result.blocks);
+                    updateDashboardValue('rpc-blocks-label', info.result.blocks);
+                    updateDashboardValue('v-size', `${sizeGB} GB`);
+
+                    const mpool = await processCommand(currentNet, 'getmempoolinfo', true);
+                    if (mpool && mpool.result) {
+                        updateDashboardValue('v-fee', (mpool.result.total_fee || 0).toFixed(8));
+                    }
                 }
             } catch (err) {}
         }
 
+        async function loadInitialBlocks() {
+            try {
+                const hash = await processCommand(currentNet, 'getbestblockhash', true);
+                if (hash && hash.result) {
+                    const block = await processCommand(currentNet, `getblock ${hash.result}`, true);
+                    if (block && block.result) {
+                        addBlockToFeed({
+                            topic: 'block_rich',
+                            height: block.result.height,
+                            size: block.result.size,
+                            sequence: block.result.height,
+                            tx_count: block.result.tx.length,
+                            fees: 0
+                        }, new Date().toLocaleTimeString());
+                    }
+                }
+            } catch (err) {}
+        }
+
+        async function ensureRegtestWallet() {
+            const loaded = await processCommand('regtest', 'listwallets', true);
+            if (loaded && Array.isArray(loaded.result) && loaded.result.includes(REGTEST_WALLET)) {
+                return true;
+            }
+
+            const load = await processCommand('regtest', `loadwallet ${REGTEST_WALLET}`, true);
+            if (load && load.result) {
+                showToast('Wallet carregada', `Carteira ${REGTEST_WALLET} pronta para uso.`, 'success');
+                return true;
+            }
+
+            const created = await processCommand('regtest', `createwallet ${REGTEST_WALLET}`, true);
+            if (created && created.result) {
+                showToast('Wallet criada', `Carteira ${REGTEST_WALLET} criada no regtest.`, 'success');
+                return true;
+            }
+
+            const retryLoad = await processCommand('regtest', `loadwallet ${REGTEST_WALLET}`, true);
+            if (retryLoad && retryLoad.result) return true;
+
+            showToast('Wallet indisponivel', 'Nao foi possivel carregar ou criar a carteira regtest.', 'error');
+            return false;
+        }
+
+        async function executeMacro(cmd) {
+            if (currentNet !== 'regtest' && ['getnewaddress', 'getbalance', 'generatetoaddress'].includes(cmd)) {
+                showToast('Comando bloqueado', 'Operacoes de wallet/mineracao ficam restritas ao regtest.', 'warn');
+                return;
+            }
+
+            terminals[currentNet].write(cmd + '\r\n');
+            cmdHistory[currentNet].unshift(cmd);
+
+            if (currentNet === 'regtest' && ['getnewaddress', 'getbalance'].includes(cmd)) {
+                const ready = await ensureRegtestWallet();
+                if (!ready) {
+                    terminals[currentNet].writeln('\x1b[31m[ERRO] Wallet regtest indisponivel.\x1b[0m\r\n');
+                    writePrompt(terminals[currentNet], currentNet);
+                    return;
+                }
+            }
+
+            processCommand(currentNet, cmd);
+        }
+
+        async function mineBlockMacro() {
+            if (currentNet !== 'regtest') {
+                switchNet('regtest');
+            }
+
+            const t = terminals['regtest'];
+            t.write('generatetoaddress 1 [auto]\r\n');
+            t.writeln('\x1b[36m[SISTEMA] Preparando wallet regtest...\x1b[0m');
+
+            const walletReady = await ensureRegtestWallet();
+            if (!walletReady) {
+                t.writeln('\x1b[31m[ERRO] Wallet regtest indisponivel.\x1b[0m\r\n');
+                writePrompt(t, 'regtest');
+                return;
+            }
+
+            t.writeln('\x1b[36m[SISTEMA] Gerando endereço de recompensa...\x1b[0m');
+            const addrData = await processCommand('regtest', 'getnewaddress', true);
+            if (addrData && addrData.result) {
+                t.writeln('\x1b[36m[SISTEMA] Forjando bloco na rede...\x1b[0m');
+                await processCommand('regtest', `generatetoaddress 1 ${addrData.result}`, true);
+                t.write('\r\n');
+                writePrompt(t, 'regtest');
+            } else {
+                t.writeln('\x1b[31m[ERRO] Nao foi possivel gerar endereco na wallet regtest.\x1b[0m\r\n');
+                writePrompt(t, 'regtest');
+            }
+        }
+
         function updateDashboardValue(elementId, newValue) {
             const el = document.getElementById(elementId);
-            if (el.innerText !== String(newValue)) {
+            if (el && el.innerText !== String(newValue)) {
                 el.innerText = newValue;
                 el.classList.add('flash');
                 setTimeout(() => el.classList.remove('flash'), 300);
             }
         }
 
-        setInterval(fetchMempoolState, 3000);
-        fetchMempoolState();
+        async function verifyToken(token = "") {
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['X-CoreCraft-Token'] = token;
+            const response = await fetch('/auth/verify/', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({}),
+                credentials: 'same-origin'
+            });
+            return response.ok;
+        }
+
+        async function submitLogin(e) {
+            e.preventDefault();
+            const input = document.getElementById('login-token');
+            const button = document.getElementById('login-submit');
+            const token = (input ? input.value : "").trim();
+
+            if (!token) {
+                showToast('Token vazio', 'Cole o valor de APP_AUTH_TOKEN para continuar.', 'warn');
+                return;
+            }
+
+            if (button) button.disabled = true;
+            try {
+                const ok = REQUIRE_AUTH ? await verifyToken(token) : true;
+                if (!ok) {
+                    showToast('Token invalido', 'O backend recusou o token informado.', 'error');
+                    return;
+                }
+
+                authToken = "";
+                authReady = true;
+                localStorage.removeItem(AUTH_TOKEN_KEY);
+                hideLogin();
+                showToast('Acesso liberado', 'Painel autenticado com sucesso.', 'success');
+                startApp();
+            } catch (err) {
+                showToast('Login indisponivel', 'Nao foi possivel validar o token agora.', 'error');
+            } finally {
+                if (button) button.disabled = false;
+            }
+        }
+
+        function startApp() {
+            if (appStarted) {
+                connectSocket();
+                fetchNodeStatus();
+                if (!statusTimer) statusTimer = setInterval(fetchNodeStatus, 3000);
+                return;
+            }
+
+            appStarted = true;
+            connectSocket();
+            switchNet('regtest');
+            if (!statusTimer) statusTimer = setInterval(fetchNodeStatus, 3000);
+        }
+
+        document.querySelectorAll('[data-view]').forEach(button => {
+            button.addEventListener('click', () => {
+                selectSidePanel(button.dataset.view);
+            });
+        });
+
+        document.querySelectorAll('[data-open-view]').forEach(item => {
+            item.addEventListener('click', () => {
+                if (item.dataset.openView === 'docs') {
+                    selectMainView('docs', 'docs');
+                    return;
+                }
+                selectMainView('terminal', item.dataset.openTab || currentNet);
+            });
+        });
+
+        document.querySelectorAll('[data-settings-target]').forEach(button => {
+            button.addEventListener('click', () => {
+                selectSettingsSection(button.dataset.settingsTarget);
+            });
+        });
+
+        document.querySelectorAll('.toggle').forEach(toggle => {
+            toggle.addEventListener('click', () => toggle.classList.toggle('active'));
+        });
+
+        document.querySelectorAll('[data-theme-preset]').forEach(button => {
+            button.addEventListener('click', () => {
+                const preset = button.dataset.themePreset;
+                applyTheme(themePresets[preset], preset);
+                localStorage.setItem(THEME_KEY, JSON.stringify({ preset }));
+            });
+        });
+
+        document.querySelectorAll('[data-theme-var]').forEach(input => {
+            input.addEventListener('input', () => {
+                root.style.setProperty(input.dataset.themeVar, input.value);
+                document.querySelectorAll('[data-theme-preset]').forEach(button => button.classList.remove('active'));
+                saveCustomTheme();
+            });
+        });
+
+        document.getElementById('font-select').addEventListener('change', (event) => {
+            root.style.setProperty('--font-mono', event.target.value);
+            updateTerminalFont(event.target.value);
+            localStorage.setItem(FONT_KEY, event.target.value);
+        });
+
+        document.getElementById('reset-theme').addEventListener('click', () => {
+            localStorage.removeItem(THEME_KEY);
+            localStorage.removeItem(FONT_KEY);
+            root.style.setProperty('--font-mono', DEFAULT_FONT);
+            document.getElementById('font-select').value = DEFAULT_FONT;
+            updateTerminalFont(DEFAULT_FONT);
+            applyTheme(themePresets.corecraft, 'corecraft');
+        });
+
+        document.getElementById('run-selected').addEventListener('click', () => {
+            executeMacro(document.getElementById('macro-select').value);
+        });
+
+        document.getElementById('search-input').addEventListener('input', (event) => {
+            const term = event.target.value.trim().toLowerCase();
+            document.querySelectorAll('[data-panel="search"] .tool-item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(term) ? 'grid' : 'none';
+            });
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!window.matchMedia('(max-width: 820px)').matches) return;
+            const clickedSidebar = event.target.closest('.ide-sidebar');
+            const clickedActivity = event.target.closest('.ide-activitybar');
+            if (!clickedSidebar && !clickedActivity) {
+                workspaceShell.classList.remove('mobile-sidebar-open');
+            }
+        });
+
+        document.querySelectorAll('.resize-handle').forEach(handle => {
+            handle.addEventListener('pointerdown', (event) => {
+                if (window.matchMedia('(max-width: 820px)').matches) return;
+
+                event.preventDefault();
+                handle.setPointerCapture(event.pointerId);
+                document.body.classList.add('resizing');
+
+                const type = handle.dataset.resize;
+                const startX = event.clientX;
+                const startY = event.clientY;
+                const styles = getComputedStyle(root);
+                const startSidebar = parseFloat(styles.getPropertyValue('--sidebar-width')) || 236;
+                const startRight = parseFloat(styles.getPropertyValue('--rightbar-width')) || 300;
+                const startTerminal = document.getElementById('workspace').getBoundingClientRect().height;
+
+                function move(pointerEvent) {
+                    if (type === 'sidebar') {
+                        root.style.setProperty('--sidebar-width', `${clamp(startSidebar + pointerEvent.clientX - startX, 176, 420)}px`);
+                    }
+                    if (type === 'right') {
+                        root.style.setProperty('--rightbar-width', `${clamp(startRight - (pointerEvent.clientX - startX), 220, 460)}px`);
+                    }
+                    if (type === 'terminal') {
+                        const maxHeight = Math.max(240, window.innerHeight - 170);
+                        const next = clamp(startTerminal - (pointerEvent.clientY - startY), 180, maxHeight);
+                        root.style.setProperty('--terminal-height', `${next}px`);
+                    }
+                }
+
+                function stop() {
+                    document.body.classList.remove('resizing');
+                    handle.releasePointerCapture(event.pointerId);
+                    document.removeEventListener('pointermove', move);
+                    document.removeEventListener('pointerup', stop);
+                }
+
+                document.addEventListener('pointermove', move);
+                document.addEventListener('pointerup', stop);
+            });
+        });
+
+        loadTheme();
+        loadFont();
+        document.getElementById('login-form').addEventListener('submit', submitLogin);
+
+        if (REQUIRE_AUTH) {
+            verifyToken().then(ok => {
+                if (ok) {
+                    authReady = true;
+                    localStorage.removeItem(AUTH_TOKEN_KEY);
+                    hideLogin();
+                    startApp();
+                } else if (legacyStoredToken) {
+                    verifyToken(legacyStoredToken).then(legacyOk => {
+                        if (legacyOk) {
+                            authReady = true;
+                            localStorage.removeItem(AUTH_TOKEN_KEY);
+                            hideLogin();
+                            startApp();
+                        } else {
+                            localStorage.removeItem(AUTH_TOKEN_KEY);
+                            showLogin('Informe o token atual para liberar o painel.');
+                        }
+                    }).catch(() => showLogin('Nao foi possivel validar o token salvo.'));
+                } else {
+                    localStorage.removeItem(AUTH_TOKEN_KEY);
+                    showLogin();
+                }
+            }).catch(() => showLogin('Nao foi possivel validar a sessao do painel.'));
+        } else {
+            hideLogin();
+            startApp();
+        }
     </script>
 </body>
 </html>

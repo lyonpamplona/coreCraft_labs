@@ -1,85 +1,81 @@
 # Modulos e Responsabilidades
 
-## Visao por Arquivo
-
 | Arquivo | Responsabilidade |
 | --- | --- |
-| `.gitignore` | Ignora caches, ambientes virtuais, logs, dados locais e segredos de ambiente. |
-| `Dockerfile` | Define imagem Python 3.11 com Django, Channels, Redis client, ZMQ e Daphne. |
-| `docker-compose.yaml` | Orquestra `bitcoind`, Redis, aplicacao web e listener ZMQ. |
-| `bitcoin.conf` | Configura Bitcoin Core em regtest com RPC e ZMQ. |
-| `manage.py` | Entrada CLI para comandos administrativos Django. |
-| `core/settings.py` | Configuracoes Django, ASGI, Channels e Redis. |
-| `core/urls.py` | Rotas HTTP: `/` e `/terminal/`. |
-| `core/views.py` | Renderiza a pagina e encaminha comandos JSON-RPC. |
-| `core/asgi.py` | Roteia HTTP e WebSocket. |
+| `Dockerfile` | Imagem Python com Django, Channels, ZMQ, requests e dotenv. |
+| `requirements.txt` | Dependencias Python pinadas para builds reprodutiveis. |
+| `docker-compose.yaml` | Sobe os tres nodes Bitcoin, Redis, web-app e zmq-listener. |
+| `bitcoin.conf.example` | Template seguro de RPC/ZMQ para mainnet, signet e regtest. |
+| `bitcoin.conf` | Arquivo local ignorado pelo Git, montado nos containers Bitcoin. |
+| `.env` | Define endpoints, usuarios e senhas RPC usados pela aplicacao. |
+| `manage.py` | CLI administrativa Django. |
+| `core/settings.py` | Configuracoes Django/ASGI/Channels lidas do ambiente. |
+| `core/urls.py` | Rotas HTTP `/` e `/terminal/`. |
+| `core/auth.py` | Validacao de token/cookie HTTP/WebSocket e Origin. |
+| `core/rpc.py` | Parser, politica por rede e cliente JSON-RPC. |
+| `core/views.py` | Renderizacao da interface, healthcheck e endpoint RPC HTTP. |
+| `core/asgi.py` | Roteamento HTTP/WebSocket. |
 | `core/consumers.py` | Consumer WebSocket do grupo `btc_events`. |
-| `core/zmq_listener.py` | Processo assinante de ZMQ e publicador no channel layer. |
-| `core/wsgi.py` | Entrada WSGI tradicional. |
-| `templates/index.html` | Interface visual, terminal, dashboard, macros e cliente WebSocket. |
-| `docs/` | Documentacao tecnica do projeto. |
+| `core/zmq_listener.py` | Listener ZMQ multi-rede e publicador de eventos. |
+| `templates/index.html` | Interface multi-terminal, dashboard, macros e WebSocket. |
+| `docs/` | Documentacao, auditoria e roadmap. |
 
 ## `core/views.py`
 
-Constantes:
-
-- `RPC_URL`: endpoint interno `http://bitcoind:18443`.
-- `RPC_USER`: usuario RPC.
-- `RPC_PASS`: senha RPC.
-
 Funcoes:
 
-- `coerce_rpc_param(value)`: converte tokens textuais para `int`, `bool` ou `str`.
-- `parse_terminal_command(command)`: separa a linha em metodo RPC e parametros.
-- `rpc_call(method, params=None)`: executa POST JSON-RPC autenticado.
-- `index(request)`: renderiza `templates/index.html`.
-- `terminal_command(request)`: recebe comandos do terminal e devolve resposta JSON-RPC.
+- `index(request)`: renderiza a interface.
+- `health(request)`: responde healthcheck HTTP.
+- `auth_verify(request)`: valida token e grava cookie `HttpOnly`.
+- `auth_logout(request)`: remove o cookie de autenticacao.
+- `terminal_command(request)`: valida requisicao e encaminha comando RPC.
 
-## `core/asgi.py`
+## `core/rpc.py`
 
-Define `application` com `ProtocolTypeRouter`:
+Responsavel por:
 
-- `http`: delega ao Django via `get_asgi_application()`.
-- `websocket`: direciona `ws/btc/` para `BTCEventConsumer`.
+- interpretar comandos com `shlex.split`;
+- converter parametros JSON basicos;
+- aplicar allowlist em mainnet/signet;
+- aplicar blocklist em regtest;
+- normalizar erros de comunicacao RPC.
 
-## `core/consumers.py`
+## `core/auth.py`
 
-Classe `BTCEventConsumer`:
+Responsavel por:
 
-- `connect()`: adiciona o canal ao grupo `btc_events` e aceita a conexao.
-- `disconnect(close_code)`: remove o canal do grupo.
-- `btc_message(event)`: envia `event["data"]` ao navegador em JSON.
+- validar `APP_AUTH_TOKEN`;
+- definir o nome do cookie de autenticacao;
+- ler token de cookie `HttpOnly`, header `X-CoreCraft-Token` ou `Authorization`;
+- ler token de cookie/header no WebSocket, com query string apenas para compatibilidade;
+- validar Origin quando configurado.
 
 ## `core/zmq_listener.py`
 
-Funcao `start_zmq()`:
+Responsavel por:
 
-- cria contexto ZMQ;
-- conecta em `tcp://bitcoind:28332` e `tcp://bitcoind:28333`;
-- assina `rawtx` e `rawblock`;
-- recebe mensagens multipart;
-- monta payload com `topic`, `size` e `sequence`;
-- publica no grupo `btc_events` via `async_to_sync(layer.group_send)`.
-
-## `core/settings.py`
-
-Configuracoes importantes:
-
-- `INSTALLED_APPS` inclui `daphne`, `core` e `django.contrib.staticfiles`.
-- `ASGI_APPLICATION = 'core.asgi.application'`.
-- `CHANNEL_LAYERS` usa `channels_redis.core.RedisChannelLayer`.
-- Redis configurado em `redis:6379`.
-- `DATABASES = {}`, porque o projeto nao persiste dados em banco.
+- conectar nos endpoints ZMQ dos tres nodes;
+- assinar `rawtx`, `rawblock` e `hashblock`;
+- enriquecer blocos via RPC quando possivel;
+- publicar eventos no grupo `btc_events`;
+- registrar logs e encerrar sockets de forma graciosa.
 
 ## `templates/index.html`
 
-Responsabilidades:
+Contem:
 
-- renderizar layout do command center;
-- inicializar xterm.js;
-- abrir WebSocket para `/ws/btc/`;
-- imprimir eventos `rawtx` e `rawblock`;
-- manter feed lateral de blocos;
-- enviar comandos ao endpoint `/terminal/`;
-- atualizar dashboard de mempool com `getmempoolinfo`;
-- executar macros como saldo, novo endereco, info de rede e mineracao de bloco.
+- seletor de rede;
+- tres terminais xterm.js;
+- historico por rede;
+- autocomplete simples;
+- macros;
+- dashboard;
+- timeline de blocos;
+- cliente WebSocket;
+- tema/fonte/cores salvos no navegador.
+
+## Pontos de Atencao
+
+- `bitcoin.conf` real deve permanecer ignorado pelo Git.
+- `templates/index.html` cresceu e deve ser separado em arquivos estaticos.
+- O modelo de autenticacao ainda e token compartilhado, nao usuarios individuais.

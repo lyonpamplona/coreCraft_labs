@@ -2,164 +2,165 @@
 
 ## Requisitos
 
-- Docker instalado.
-- Docker Compose pelo comando `docker compose`.
-- Acesso a internet para baixar imagens e dependencias.
-- Porta `8005` livre para a interface.
-- Portas `18443`, `28332` e `28333` livres se voce quiser acessar RPC/ZMQ pelo host.
+- Docker e Docker Compose.
+- Porta `8005` livre no host.
+- Espaco em disco para volumes dos nodes Bitcoin.
+- `.env` com endpoints/credenciais RPC.
+- `bitcoin.conf` local criado a partir de `bitcoin.conf.example`.
 
-## Execucao
+## Servicos
+
+| Servico | Container | Uso |
+| --- | --- | --- |
+| `btc-mainnet` | `btc_mainnet` | Node mainnet pruned. |
+| `btc-signet` | `btc_signet` | Node signet. |
+| `btc-regtest` | `btc_regtest` | Node regtest. |
+| `redis` | `btc_redis` | Channel layer. |
+| `web-app` | `btc_ui` | Interface HTTP/WebSocket. |
+| `zmq-listener` | `btc_zmq_listener` | Ponte ZMQ para WebSocket. |
+
+## Executar
 
 ```bash
 docker compose up --build
 ```
 
-A interface fica disponivel em:
+Em segundo plano:
+
+```bash
+docker compose up --build -d
+```
+
+Acessar:
 
 ```text
 http://localhost:8005
 ```
 
-Encerramento:
+Encerrar:
 
 ```bash
 docker compose down
 ```
 
-## Servicos
+## Variaveis de Ambiente
 
-| Servico | Container | Comando/Imagem | Memoria |
-| --- | --- | --- | --- |
-| `bitcoind` | `btc_regtest` | `ruimarinho/bitcoin-core:latest` | `512M` |
-| `redis` | `btc_redis` | `redis:7-alpine` | padrao |
-| `web-app` | `btc_ui` | `python manage.py runserver 0.0.0.0:8000` | `256M` |
-| `zmq-listener` | `btc_zmq_listener` | `python -m core.zmq_listener` | `128M` |
+Copie `.env.example` para `.env` e ajuste os valores locais. O `.env` real e ignorado pelo Git.
 
-## Portas
+```text
+DEBUG=True
+SECRET_KEY=<chave-local>
+ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+REQUIRE_AUTH=True
+APP_AUTH_TOKEN=<token-local>
+APP_AUTH_COOKIE_NAME=corecraft_auth
+WEBSOCKET_ALLOWED_ORIGINS=http://localhost:8005,http://127.0.0.1:8005
 
-| Porta host | Porta container | Uso |
-| --- | --- | --- |
-| `8005` | `8000` | HTTP/WebSocket da aplicacao |
-| `18443` | `18443` | RPC do Bitcoin Core em regtest |
-| `28332` | `28332` | ZMQ `rawtx` |
-| `28333` | `28333` | ZMQ `rawblock` |
+MAINNET_RPC_URL=http://btc-mainnet:8332
+MAINNET_RPC_USER=<usuario>
+MAINNET_RPC_PASS=<senha>
+
+SIGNET_RPC_URL=http://btc-signet:38332
+SIGNET_RPC_USER=<usuario>
+SIGNET_RPC_PASS=<senha>
+
+REGTEST_RPC_URL=http://btc-regtest:18443
+REGTEST_RPC_USER=<usuario>
+REGTEST_RPC_PASS=<senha>
+
+REDIS_URL=redis://redis:6379/0
+MAINNET_RPC_ALLOWLIST=<metodos-read-only-separados-por-virgula>
+SIGNET_RPC_ALLOWLIST=<metodos-read-only-separados-por-virgula>
+REGTEST_RPC_BLOCKLIST=stop
+
+ZMQ_MAINNET_TOPICS=rawblock,hashblock
+ZMQ_SIGNET_TOPICS=rawblock,hashblock
+ZMQ_REGTEST_TOPICS=rawtx,rawblock,hashblock
+CHANNELS_REDIS_LOG_LEVEL=WARNING
+```
+
+Quando `REQUIRE_AUTH=True`, a interface solicita `APP_AUTH_TOKEN` no navegador. A verificacao inicial usa o header `X-CoreCraft-Token`; depois o backend grava um cookie `HttpOnly` chamado `APP_AUTH_COOKIE_NAME` para liberar `/terminal/` e `/ws/btc/` sem expor o token em `localStorage` ou na URL do WebSocket.
+
+Clientes externos ainda podem chamar a API HTTP usando `X-CoreCraft-Token` ou `Authorization: Bearer <token>`.
+
+O WebSocket aceita origens listadas em `WEBSOCKET_ALLOWED_ORIGINS` e tambem a propria origem do host acessado no navegador. Isso permite usar `localhost`, `127.0.0.1` ou outro host local configurado em `ALLOWED_HOSTS` sem quebrar o painel por divergencia de Origin.
+
+Por padrao, o listener ZMQ nao assina `rawtx` em `mainnet` e `signet`, porque essas redes podem gerar volume alto de eventos e saturar o grupo WebSocket `btc_events`. Para monitorar transacoes nessas redes, adicione `rawtx` em `ZMQ_MAINNET_TOPICS` ou `ZMQ_SIGNET_TOPICS` sabendo que isso aumenta bastante o volume de mensagens.
 
 ## Bitcoin Core
 
-Arquivo: `bitcoin.conf`
+O projeto versiona apenas `bitcoin.conf.example`. O `bitcoin.conf` real e ignorado pelo Git e deve ser criado localmente:
 
-```text
-regtest=1
-server=1
-txindex=1
-printtoconsole=1
-
-[regtest]
-rpcallowip=0.0.0.0/0
-rpcbind=0.0.0.0
-rpcuser=lyon
-rpcpassword=senha_segura
-zmqpubrawtx=tcp://0.0.0.0:28332
-zmqpubrawblock=tcp://0.0.0.0:28333
+```bash
+cp bitcoin.conf.example bitcoin.conf
 ```
 
-## Django e Channels
+Use `rpcauth` no `bitcoin.conf`, nao `rpcpassword`. O usuario e a senha em texto puro ficam apenas no `.env`, para que Django e o listener ZMQ consigam autenticar no RPC.
 
-Arquivo: `core/settings.py`
+Para gerar novos valores, use o script `rpcauth.py` do Bitcoin Core ou um gerador local equivalente. Depois:
 
-- `ROOT_URLCONF = 'core.urls'`.
-- `WSGI_APPLICATION = 'core.wsgi.application'`.
-- `ASGI_APPLICATION = 'core.asgi.application'`.
-- `CHANNEL_LAYERS` aponta para Redis em `redis:6379`.
-- `DATABASES = {}` porque nao ha persistencia relacional.
+1. coloque o valor `rpcauth=<usuario>:<salt>$<hash>` no bloco da rede em `bitcoin.conf`;
+2. coloque o mesmo usuario em `<REDE>_RPC_USER` no `.env`;
+3. coloque a senha original em `<REDE>_RPC_PASS` no `.env`.
 
-## Dependencias Python
+Perfil pruned recomendado neste projeto:
 
-Instaladas no `Dockerfile`:
+- mainnet: `prune=550`, `disablewallet=1`, mempool limitada e apenas eventos ZMQ de bloco;
+- signet: `prune=550`, `disablewallet=1`, mempool menor e apenas eventos ZMQ de bloco;
+- regtest: sem prune, com `txindex=1`, wallet habilitada e `rawtx` ativo para testes locais.
 
-```text
-django
-requests
-pyzmq
-channels
-channels-redis
-daphne
-```
-
-## Executando Partes Manualmente
-
-O modo principal e Docker Compose. Para diagnosticar partes isoladas:
+## Logs
 
 ```bash
 docker compose logs -f web-app
 docker compose logs -f zmq-listener
-docker compose logs -f bitcoind
+docker compose logs -f btc-mainnet
+docker compose logs -f btc-signet
+docker compose logs -f btc-regtest
 docker compose logs -f redis
 ```
 
-Executar o listener dentro do container web:
+## Validacao
 
 ```bash
-docker compose exec web-app python -m core.zmq_listener
+docker compose config
+PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py
 ```
-
-## Rodando Fora do Docker
-
-Para rodar no host, ajuste dependencias e endpoints:
-
-1. Instale Python 3.11+.
-2. Instale os pacotes:
-
-   ```bash
-   pip install django requests pyzmq channels channels-redis daphne
-   ```
-
-3. Tenha Redis acessivel.
-4. Tenha Bitcoin Core regtest com RPC e ZMQ habilitados.
-5. Ajuste `RPC_URL` e endpoints ZMQ caso nao use hostnames Docker.
-6. Rode a aplicacao:
-
-   ```bash
-   python manage.py runserver 0.0.0.0:8000
-   ```
-
-7. Rode o listener:
-
-   ```bash
-   DJANGO_SETTINGS_MODULE=core.settings python -m core.zmq_listener
-   ```
-
-## `.gitignore`
-
-O projeto ignora:
-
-- caches Python;
-- ambientes virtuais;
-- banco SQLite local;
-- logs;
-- `.env` e variantes;
-- dados locais de Bitcoin/Redis;
-- arquivos de IDE;
-- artefatos locais do Codex.
 
 ## Troubleshooting
 
-### A interface abre, mas comandos RPC falham
+### Interface abre, mas RPC falha
 
-Verifique se `bitcoind` esta ativo e se `RPC_USER`/`RPC_PASS` em `core/views.py` batem com `bitcoin.conf`.
+Verifique `.env`, `bitcoin.conf` e logs do node da rede selecionada.
 
-### WebSocket conecta, mas nao chegam eventos
+### Eventos nao aparecem
 
-Confirme que `zmq-listener` esta rodando e que o Bitcoin Core publicou algum `rawtx` ou `rawblock`. Minerar um bloco pela macro deve gerar `rawblock`.
+Confira:
 
-### Dashboard de mempool fica zerado
+```bash
+docker compose logs -f zmq-listener
+docker compose logs -f redis
+```
 
-Em `regtest`, a mempool pode estar vazia. Gere uma transacao ou consulte `getmempoolinfo` manualmente no terminal.
+Depois gere um bloco em regtest para forcar evento:
 
-### `getnewaddress` falha
+```text
+getnewaddress
+generatetoaddress 1 <endereco>
+```
 
-O Bitcoin Core pode estar sem wallet carregada/criada. Use comandos RPC de wallet conforme a versao da imagem Bitcoin Core.
+### Logs repetidos de channels_redis over capacity
 
-### xterm.js nao carrega
+Esse log indica que o listener esta publicando mais eventos do que os WebSockets conseguem consumir. Mantenha `rawtx` desabilitado em `mainnet` e `signet`, feche abas antigas do painel e reinicie Redis/web/listener para limpar canais antigos:
 
-A interface usa CDN. Sem acesso a internet no navegador, empacote xterm.js localmente ou substitua os links CDN.
+```bash
+docker compose restart redis web-app zmq-listener
+```
+
+### Node aparece unhealthy com incorrect password attempt
+
+Isso geralmente indica divergencia entre o `rpcauth` do `bitcoin.conf` e usuario/senha no `.env`. Os healthchecks dos nodes usam as variaveis `<REDE>_RPC_USER` e `<REDE>_RPC_PASS`; confirme se elas correspondem exatamente ao `rpcauth` da rede.
+
+### Mainnet demora para ficar util
+
+Mesmo com `prune`, a sincronizacao inicial pode ser longa e consumir disco/rede. Use signet/regtest para testes rapidos.
