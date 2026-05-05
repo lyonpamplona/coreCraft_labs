@@ -1,0 +1,270 @@
+        @media (max-width: 1120px) {
+            :root {
+                --rightbar-width: 0px;
+                --actions-width: 180px;
+            }
+
+            .ide-workspace {
+                grid-template-columns: 46px var(--sidebar-width) 5px minmax(0, 1fr);
+            }
+
+            .ide-rightbar {
+                display: none;
+            }
+
+            .resize-handle[data-resize="right"] {
+                display: none;
+            }
+
+            .work-area {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
+            }
+
+            .terminal-command-strip {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 860px) {
+            .ide-topbar {
+                grid-template-columns: 1fr auto;
+            }
+
+            .ide-command {
+                display: none;
+            }
+
+            .ide-workspace {
+                grid-template-columns: 42px minmax(0, 1fr);
+                position: relative;
+            }
+
+            .ide-sidebar {
+                display: none;
+                position: absolute;
+                left: 42px;
+                top: 0;
+                bottom: 0;
+                z-index: 30;
+                width: min(320px, calc(100vw - 42px));
+                box-shadow: 24px 0 50px rgba(0, 0, 0, 0.45);
+            }
+
+            .ide-workspace.mobile-sidebar-open .ide-sidebar {
+                display: grid;
+            }
+
+            .resize-handle {
+                display: none;
+            }
+
+            #mempool-metrics {
+                grid-template-columns: 1fr;
+                overflow: auto;
+            }
+
+            .content {
+                padding: 0.625rem;
+                overflow: auto;
+            }
+
+            .quick-actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .terminal-toolbar {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "title"
+                    "commands"
+                    "actions";
+            }
+
+            .ide-actions {
+                justify-content: flex-start;
+                overflow-x: auto;
+            }
+
+            .terminal-command-strip {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .color-grid,
+            .doc-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ide-tab {
+                min-width: 96px;
+                max-width: 132px;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .ide-shell {
+                grid-template-rows: 34px 1fr 28px;
+            }
+
+            .ide-main {
+                grid-template-rows: 36px minmax(0, 1fr) 0 minmax(240px, 38vh);
+            }
+
+            .content {
+                grid-template-rows: auto auto;
+            }
+
+            #mempool-metrics .metric-card {
+                min-height: 62px;
+            }
+
+            .metric-value {
+                font-size: 1.125rem;
+            }
+
+            .status-left,
+            .status-right {
+                gap: 0.5rem;
+            }
+
+            .status-right span:first-child {
+                display: none;
+            }
+        }
+
+        /* Camada de estabilizacao do painel IDE.
+           Mantem cada area responsavel pelo proprio scroll e impede o terminal
+           ou a timeline de cobrir cards, docs e barra inferior. */
+        :root {
+            --terminal-height: clamp(240px, 34vh, 420px);
+            --rightbar-width: 280px;
+        }
+
+        html,
+        body,
+        .ide-shell,
+        .ide-workspace,
+        .ide-main,
+        .content,
+        .work-area,
+        .editor-card,
+        #workspace,
+        #terminal-wrapper,
+        #terminal-container,
+        .term-panel,
+        .ide-sidebar,
+        .ide-rightbar {
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .ide-shell {
+            grid-template-rows: 34px minmax(0, 1fr) 24px;
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        .ide-workspace {
+            overflow: hidden;
+        }
+
+        .ide-main {
+            grid-template-rows: 36px minmax(0, 1fr) 5px minmax(220px, min(var(--terminal-height), 44vh));
+            overflow: hidden;
+        }
+
+        .content {
+            grid-template-rows: auto minmax(0, 1fr);
+            overflow: hidden;
+        }
+
+        #mempool-metrics {
+            align-items: stretch;
+        }
+
+        .metric-card {
+            min-height: 64px;
+            max-height: 86px;
+        }
+
+        .metric-value {
+            line-height: 1.1;
+            overflow-wrap: anywhere;
+        }
+
+        .editor-view {
+            overflow: auto;
+        }
+
+        .docs-main-view {
+            height: auto;
+            min-height: 0;
+            overscroll-behavior: contain;
+        }
+
+        #workspace {
+            border-top: 1px solid var(--ide-border);
+        }
+
+        .terminal-panel {
+            min-height: 0;
+        }
+
+        .terminal-toolbar {
+            max-height: 118px;
+            overflow: hidden;
+        }
+
+        #terminal-container {
+            height: 100%;
+        }
+
+        .term-panel.active {
+            display: block;
+        }
+
+        .xterm,
+        .xterm-viewport,
+        .xterm-screen {
+            height: 100% !important;
+        }
+
+        .ide-rightbar {
+            grid-template-rows: 38px minmax(0, 1fr);
+        }
+
+        #block-feed {
+            overflow: auto;
+            overscroll-behavior: contain;
+        }
+
+        #block-feed:empty::before {
+            content: "Sem eventos recentes";
+            display: grid;
+            place-items: center;
+            min-height: 140px;
+            border: 1px dashed var(--ide-border);
+            border-radius: 8px;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+        }
+
+        .block-card {
+            flex: 0 0 auto;
+        }
+
+        .statusbar {
+            min-height: 24px;
+            position: relative;
+            z-index: 5;
+        }
+
+        body.docs-active .ide-main {
+            grid-template-rows: 36px minmax(0, 1fr) 5px minmax(180px, 24vh);
+        }
+

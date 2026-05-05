@@ -1,0 +1,37 @@
+<div id="mempool-metrics">
+    <div class="metric-card" id="card-sync">
+        <div class="metric-info" style="width: 100%;">
+            <span class="metric-title" style="display:block; margin-bottom: 0.5rem;">Node Sync & Divergence</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Blocos</small><strong id="v-blocks" style="font-size: 1rem;">0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Lag</small><strong id="v-lag" style="font-size: 1rem; color: var(--green);">0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Divergencia</small><strong id="v-divergence" style="font-size: 1rem; color: var(--green);">NAO</strong></div>
+            </div>
+        </div>
+        <div class="metric-icon"><svg class="icon"><use href="#ico-zap"></use></svg></div>
+    </div>
+    
+    <div class="metric-card" id="card-mempool">
+        <div class="metric-info" style="width: 100%;">
+            <span class="metric-title" style="display:block; margin-bottom: 0.5rem;">Mempool Intelligence</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Total TXs</small><strong id="v-mempool-tx" style="font-size: 1rem;">0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Media (sat/vB)</small><strong id="v-mempool-fee" style="font-size: 1rem;">0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">L / M / H</small><strong id="v-mempool-dist" style="font-size: 0.85rem; color: var(--text-muted);">0/0/0</strong></div>
+            </div>
+        </div>
+        <div class="metric-icon"><svg class="icon"><use href="#ico-database"></use></svg></div>
+    </div>
+    
+    <div class="metric-card" id="card-events">
+        <div class="metric-info" style="width: 100%;">
+            <span class="metric-title" style="display:block; margin-bottom: 0.5rem;">Event Activity (ZMQ)</span>
+            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">TX / seg</small><strong id="v-events-txs" style="font-size: 1rem;">0.0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">TXs Vistas</small><strong id="v-events-obs" style="font-size: 1rem;">0</strong></div>
+                <div style="display: flex; flex-direction: column;"><small style="color: var(--text-muted); font-size: 0.65rem;">Blocos Vistos</small><strong id="v-events-blocks" style="font-size: 1rem;">0</strong></div>
+            </div>
+        </div>
+        <div class="metric-icon"><svg class="icon"><use href="#ico-play"></use></svg></div>
+    </div>
+</div>

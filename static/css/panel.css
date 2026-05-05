@@ -1,0 +1,16 @@
+/*
+ * Agregador de estilos do painel.
+ *
+ * Os arquivos em static/css/panel/ preservam a ordem original do CSS, mas
+ * separam responsabilidades para reduzir risco em ajustes futuros.
+ */
+@import url("./panel/00-base.css");
+@import url("./panel/10-shell.css");
+@import url("./panel/20-sidebars.css");
+@import url("./panel/30-content.css");
+@import url("./panel/40-terminal.css");
+@import url("./panel/50-rightbar-status.css");
+@import url("./panel/60-controls-settings.css");
+@import url("./panel/70-docs-timeline.css");
+@import url("./panel/80-responsive.css");
+@import url("./panel/90-overrides.css");

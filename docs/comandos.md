@@ -67,7 +67,27 @@ getbestblockhash
 getnetworkinfo
 getmempoolinfo
 getrawmempool
+estimatesmartfee 6
 help
+help blockchain
+help control
+help mining
+help network
+help rawtransactions
+help signer
+help util
+help wallet
+help zmq
+```
+
+O comando `help` exibe o help completo real do Bitcoin Core. O formato
+`help <categoria>` filtra a secao completa correspondente, sem usar lista
+resumida local. Quando o argumento nao e uma categoria, o painel tenta consultar
+a ajuda especifica do comando, por exemplo:
+
+```text
+help getblock
+help getnewaddress
 ```
 
 ## Regtest
@@ -84,7 +104,7 @@ Gerar endereco:
 getnewaddress
 ```
 
-O painel usa a wallet regtest padrao `corecraft` para os botoes **Saldo**, **Novo Endereco** e **Forjar 1 Bloco**. Se ela nao estiver carregada, a interface tenta executar `loadwallet corecraft`; se ela nao existir, tenta `createwallet corecraft`.
+O painel usa a wallet regtest padrao `corecraft` para os botoes **Endereco**, **Saldo**, **Forjar 100** e **Forjar 1**. Se ela nao estiver carregada, a interface tenta executar `loadwallet corecraft`; se ela nao existir, tenta `createwallet corecraft`.
 
 Minerar um bloco:
 
@@ -97,6 +117,16 @@ Minerar 101 blocos para amadurecer coinbase:
 ```text
 generatetoaddress 101 <endereco>
 ```
+
+Atalhos equivalentes na toolbar regtest:
+
+```text
+Forjar 1    -> getnewaddress + generatetoaddress 1 <endereco>
+Forjar 100  -> getnewaddress + generatetoaddress 100 <endereco>
+```
+
+Use **Forjar 1** seguido de **Forjar 100** em uma rede zerada quando quiser
+atingir a maturacao de coinbase durante uma demo.
 
 Ver saldo:
 
@@ -145,6 +175,25 @@ Healthcheck da aplicacao:
 curl http://localhost:8005/health/
 ```
 
+Consultar APIs agregadas do dashboard:
+
+```bash
+curl "http://localhost:8005/api/blockchain/lag/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/mempool/summary/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/summary/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/latest/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/state-comparison/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+```
+
 Limpar a sessao autenticada do navegador:
 
 ```bash
@@ -176,6 +225,7 @@ curl -X POST http://localhost:8005/auth/logout/
 docker compose exec web-app sh
 docker compose exec zmq-listener sh
 docker compose exec redis redis-cli ping
+docker compose exec redis redis-cli keys 'zmq:*'
 docker compose exec btc-regtest sh
 ```
 

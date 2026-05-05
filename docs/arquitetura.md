@@ -2,15 +2,16 @@
 
 ## Objetivo
 
-O coreCraft Multi-Node e um painel local para operar e observar tres nodes Bitcoin Core: `mainnet`, `signet` e `regtest`. A interface permite executar RPC por rede, acompanhar sincronizacao/mempool e receber eventos ZMQ em tempo real via WebSocket.
+O coreCraft Multi-Node e um painel local para operar e observar tres nodes Bitcoin Core: `mainnet`, `signet` e `regtest`. A interface permite executar RPC por rede, acompanhar sincronizacao, divergencia, mempool e atividade ZMQ, alem de receber eventos em tempo real via WebSocket.
 
 ## Componentes
 
 ```mermaid
 flowchart LR
-    Browser[Navegador<br>xterm.js multi-terminal] -->|GET /| Web[Django/ASGI<br>web-app]
+    Browser[Navegador<br>xterm.js + FitAddon<br>painel IDE] -->|GET / + /static/*| Web[Django/ASGI<br>web-app]
     Browser -->|POST /auth/verify/<br>token inicial| Web
     Browser -->|POST /terminal/<br>cookie/header + command + network| Web
+    Browser -->|GET /api/*<br>dashboard agregado| Web
     Browser <-->|WebSocket /ws/btc/<br>cookie + Origin| Web
 
     Web -->|RPC HTTP| Main[btc-mainnet]
@@ -21,6 +22,8 @@ flowchart LR
     Sig -->|ZMQ| Listener
     Reg -->|ZMQ| Listener
     Listener -->|group_send btc_events| Redis[(Redis)]
+    Listener -->|listas zmq:<rede>:blocks/txs| Redis
+    Web -->|consulta resumos ZMQ| Redis
     Redis --> Web
 ```
 
@@ -31,19 +34,19 @@ flowchart LR
 | `btc-mainnet` | Node Bitcoin Core de mainnet, pruned, usado para observabilidade/RPC. |
 | `btc-signet` | Node Bitcoin Core de signet para testes publicos. |
 | `btc-regtest` | Node Bitcoin Core local para mineracao e testes controlados. |
-| `redis` | Channel layer do Django Channels. |
-| `web-app` | Django/ASGI, terminal RPC, dashboard e WebSocket. |
-| `zmq-listener` | Ponte ZMQ -> Redis/Channels. |
+| `redis` | Channel layer do Django Channels e memoria curta de eventos ZMQ recentes. |
+| `web-app` | Django/ASGI, terminal RPC, APIs agregadas do dashboard e WebSocket. |
+| `zmq-listener` | Ponte ZMQ -> Redis/Channels, com persistencia curta de blocos/transacoes observados. |
 
 ## Camadas
 
 ### Frontend
 
-`templates/index.html` concentra a experiencia visual: seletor de rede, tres instancias xterm.js, historico por rede, macros, dashboard e feed de blocos.
+`templates/index.html` contem o shell do painel e inclui componentes HTML de `templates/components/`. A experiencia visual foi separada em `static/css/panel.css` como agregador e em arquivos menores dentro de `static/css/panel/`. O comportamento fica em `static/js/panel/main.js`, `state.js`, `ui.js`, `terminal.js` e `api.js`, cobrindo estado compartilhado, inicializacao xterm.js/FitAddon, historico por rede, macros, WebSocket, polling de APIs agregadas e filtro de `help` por categoria.
 
 ### Backend HTTP
 
-`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly` e recebe comandos de `/terminal/`, delegando parsing/politica/chamada RPC para `core.rpc`.
+`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly`, recebe comandos de `/terminal/` e expoe endpoints `/api/*` para o dashboard. Comandos livres continuam delegados para `core.rpc`; os endpoints agregados combinam RPC e Redis para entregar lag de sincronizacao, resumo de mempool, atividade ZMQ e comparacao entre melhor bloco RPC e ultimo bloco observado pelo listener.
 
 ### Backend ASGI/WebSocket
 
@@ -51,10 +54,11 @@ flowchart LR
 
 ### Listener ZMQ
 
-`core/zmq_listener.py` assina `rawtx`, `rawblock` e `hashblock` nas tres redes. Quando recebe `hashblock`, tenta enriquecer o evento com `getblockheader` e `getblockstats`.
+`core/zmq_listener.py` assina topicos ZMQ por rede conforme `ZMQ_MAINNET_TOPICS`, `ZMQ_SIGNET_TOPICS` e `ZMQ_REGTEST_TOPICS`. Por padrao, `mainnet` e `signet` usam `rawblock,hashblock`, enquanto `regtest` tambem assina `rawtx`. Quando recebe `hashblock`, grava um resumo em Redis, tenta enriquecer o evento com `getblockheader` e `getblockstats` e publica no WebSocket. Quando recebe `rawtx`, grava uma janela curta de txids e horarios em Redis.
 
 ## Limites Atuais
 
 - A autenticacao atual usa token compartilhado com cookie `HttpOnly`, nao usuarios individuais.
 - `bitcoin.conf` real e local/ignorado; mantenha apenas `bitcoin.conf.example` versionado.
-- O frontend ainda esta em um unico arquivo HTML/CSS/JS.
+- O frontend ainda e vanilla HTML/CSS/JS, mas ja esta separado em template, CSS e JS estaticos.
+- xterm.js e xterm-addon-fit ainda sao carregados via CDN; servir localmente segue como melhoria planejada.

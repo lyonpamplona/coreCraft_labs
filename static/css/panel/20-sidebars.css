@@ -1,0 +1,166 @@
+        .ide-workspace {
+            min-height: 0;
+            min-width: 0;
+            display: grid;
+            grid-template-columns: 46px var(--sidebar-width) 5px minmax(0, 1fr) 5px var(--rightbar-width);
+            overflow: hidden;
+        }
+
+        .ide-activitybar {
+            background: var(--ide-top);
+            border-right: 1px solid var(--ide-border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 0;
+            gap: 6px;
+        }
+
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-muted);
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .icon-btn:hover,
+        .icon-btn.active {
+            color: var(--text-primary);
+            background: var(--ide-hover);
+        }
+
+        .icon-btn[data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            left: 42px;
+            top: 5px;
+            z-index: 10;
+            white-space: nowrap;
+            padding: 5px 8px;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-top);
+            color: var(--text-primary);
+            font-size: 12px;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+        }
+
+        .ide-sidebar,
+        .ide-rightbar {
+            min-width: 0;
+            min-height: 0;
+            background: var(--ide-panel);
+            display: grid;
+            grid-template-rows: 38px minmax(0, 1fr);
+            overflow: hidden;
+        }
+
+        .ide-sidebar {
+            border-right: 1px solid var(--ide-border);
+        }
+
+        .ide-rightbar {
+            border-right: 0;
+            border-left: 1px solid var(--ide-border);
+        }
+
+        .ide-panel-title {
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            padding: 0 0.75rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--ide-border);
+            text-transform: uppercase;
+            font-size: 0.68rem;
+        }
+
+        .ide-networks {
+            padding: 0.5rem;
+            display: grid;
+            align-content: start;
+            gap: 0.375rem;
+            overflow: auto;
+        }
+
+        .side-panel {
+            min-height: 0;
+            display: none;
+            overflow: auto;
+        }
+
+        .side-panel.active {
+            display: block;
+        }
+
+        .tool-list {
+            padding: 0.5rem;
+            display: grid;
+            align-content: start;
+            gap: 0.5rem;
+        }
+
+        .net-btn {
+            height: 40px;
+            width: 100%;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: var(--text-muted);
+            display: grid;
+            grid-template-columns: 10px 1fr 18px;
+            gap: 0.55rem;
+            align-items: center;
+            padding: 0 0.55rem;
+            opacity: 1;
+            text-align: left;
+        }
+
+        .net-btn.active,
+        .net-btn:hover {
+            color: var(--text-primary);
+            background: var(--ide-hover);
+        }
+
+        .net-label {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.1rem;
+        }
+
+        .net-label strong,
+        .net-label small {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .net-label strong {
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+
+        .net-label small {
+            color: var(--text-muted);
+            font-size: 0.68rem;
+        }
+
+        .net-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            background: var(--green);
+        }
+
+        .btn-main .net-dot { background: var(--accent-main); }
+        .btn-sig .net-dot { background: var(--accent-sig); }
+        .btn-reg .net-dot { background: var(--accent-reg); }

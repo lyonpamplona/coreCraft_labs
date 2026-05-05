@@ -1,0 +1,42 @@
+<div class="resize-handle horizontal" data-resize="terminal" aria-hidden="true"></div>
+<section id="workspace" class="terminal-panel">
+    <div id="terminal-wrapper">
+        <div class="terminal-toolbar">
+            <div class="toolbar-title"><svg class="icon"><use href="#ico-terminal"></use></svg><span>CLI</span><span class="ide-network-state" id="active-network-name">REGTEST</span></div>
+            
+            <div class="terminal-command-strip" aria-label="Comandos rapidos do terminal">
+                <!-- GRUPO: REDE -->
+                <button class="terminal-command-button" type="button" data-terminal-command="getblockchaininfo"><svg class="icon"><use href="#ico-info"></use></svg><span>Info</span></button>
+                <button class="terminal-command-button" type="button" data-terminal-command="getpeerinfo"><svg class="icon"><use href="#ico-git"></use></svg><span>Peers</span></button>
+                
+                <div class="toolbar-separator"></div>
+
+                <!-- GRUPO: MEMPOOL -->
+                <button class="terminal-command-button" type="button" data-terminal-command="getmempoolinfo"><svg class="icon"><use href="#ico-database"></use></svg><span>Mempool</span></button>
+                <button class="terminal-command-button" type="button" data-terminal-command="estimatesmartfee 6"><svg class="icon"><use href="#ico-zap"></use></svg><span>Taxas (6 blk)</span></button>
+                
+                <div class="toolbar-separator" id="wallet-separator"></div>
+
+                <!-- GRUPO: WALLET E MINERACAO -->
+                <div style="display: flex; gap: 0.45rem;" id="terminal-wallet-group">
+                    <button class="terminal-command-button" type="button" data-terminal-command="getnewaddress"><svg class="icon"><use href="#ico-wallet"></use></svg><span>Endereço</span></button>
+                    <button class="terminal-command-button" type="button" data-terminal-command="getbalance"><svg class="icon"><use href="#ico-wallet"></use></svg><span>Saldo</span></button>
+                    <button class="terminal-command-button" type="button" data-terminal-command="generatetoaddress 100 [auto]"><svg class="icon"><use href="#ico-hammer"></use></svg><span>Forjar 100</span></button>
+                    <button class="terminal-command-button" type="button" data-terminal-command="mine-block" style="color: var(--accent-main); border-color: rgba(247, 147, 26, 0.3);"><svg class="icon"><use href="#ico-hammer"></use></svg><span>Forjar 1</span></button>
+                </div>
+            </div>
+
+            <!-- GRUPO: UTILITARIOS DA IDE -->
+            <div class="ide-actions">
+                <button class="btn" type="button" data-tip="Ajuda de Comandos" data-terminal-command="help"><svg class="icon"><use href="#ico-info"></use></svg></button>
+                <button class="btn btn-danger" type="button" data-tip="Limpar terminal" aria-label="Limpar terminal ativo" onclick="clearActiveTerminal()"><svg class="icon"><use href="#ico-trash"></use></svg></button>
+            </div>
+        </div>
+        
+        <section id="terminal-container">
+            <div id="term-mainnet" class="term-panel"></div>
+            <div id="term-signet" class="term-panel"></div>
+            <div id="term-regtest" class="term-panel active"></div>
+        </section>
+    </div>
+</section>

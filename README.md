@@ -1,6 +1,6 @@
 # coreCraft Multi-Node
 
-Interface web para operar e monitorar nodes Bitcoin Core em `mainnet`, `signet` e `regtest`. O projeto combina Django, Django Channels, Redis, WebSocket, ZMQ e xterm.js para oferecer terminais RPC por rede, acoes rapidas, painel de sincronizacao/mempool e feed de blocos/transacoes em tempo real.
+Interface web para operar e monitorar nodes Bitcoin Core em `mainnet`, `signet` e `regtest`. O projeto combina Django, Django Channels, Redis, WebSocket, ZMQ e xterm.js para oferecer terminais RPC por rede, acoes rapidas, dashboard de sincronizacao/mempool/eventos e feed de blocos/transacoes em tempo real.
 
 ## Visao Geral
 
@@ -16,12 +16,12 @@ O sistema sobe um ambiente local com seis servicos principais:
 Fluxos principais:
 
 1. O usuario acessa `http://localhost:8005`.
-2. O Django entrega `templates/index.html`.
+2. O Django entrega `templates/index.html`, componentes em `templates/components/` e assets modularizados em `static/css/` e `static/js/panel/`.
 3. O terminal web envia comandos para `POST /terminal/`.
 4. A view Django converte a linha em chamada JSON-RPC para a rede selecionada.
-5. O dashboard consulta `getblockchaininfo` e `getmempoolinfo` periodicamente.
+5. O dashboard consulta endpoints agregados em `/api/*` para sync/lag, mempool e atividade ZMQ.
 6. O listener ZMQ recebe `rawtx`, `rawblock` e `hashblock`.
-7. O listener publica eventos no grupo `btc_events` via Redis/Channels.
+7. O listener publica eventos no grupo `btc_events` via Redis/Channels e grava resumos recentes em Redis.
 8. O WebSocket `/ws/btc/` entrega os eventos ao navegador.
 
 ## Estrutura do Projeto
@@ -45,7 +45,14 @@ Fluxos principais:
 │   ├── wsgi.py               # Entrada WSGI tradicional
 │   └── zmq_listener.py       # Assinante ZMQ e publicador no channel layer
 ├── templates/
-│   └── index.html            # Command center multi-node com xterm.js
+│   ├── index.html            # Shell do command center multi-node
+│   └── components/           # Header, sidebars, metricas, viewer, terminal e login
+├── static/
+│   ├── css/
+│   │   ├── panel.css         # Agregador de CSS do painel
+│   │   └── panel/            # Base, shell, sidebars, terminal, docs, timeline e responsivo
+│   └── js/
+│       └── panel/            # Estado, UI, API, terminal e bootstrap do painel
 └── docs/                     # Documentacao tecnica detalhada
 ```
 
@@ -53,9 +60,9 @@ Fluxos principais:
 
 - Docker e Docker Compose.
 - Python 3.11 no container.
-- Pacotes Python instalados no `Dockerfile`: `django`, `requests`, `pyzmq`, `channels`, `channels-redis`, `daphne` e `python-dotenv`.
+- Pacotes Python instalados no `Dockerfile`: `django`, `requests`, `pyzmq`, `channels`, `channels-redis`, `daphne`, `redis`, `python-bitcoinlib` e `python-dotenv`.
 - Imagens Docker: `ruimarinho/bitcoin-core:latest` e `redis:7-alpine`.
-- xterm.js `5.1.0`, carregado por CDN no navegador.
+- xterm.js `5.1.0` e `xterm-addon-fit` `0.7.0`, carregados por CDN no navegador.
 
 ## Como Executar
 
@@ -107,12 +114,17 @@ Digite no terminal web:
 getblockchaininfo
 getblockcount
 getmempoolinfo
+estimatesmartfee 6
+help
+help blockchain
+help wallet
 getnewaddress
+generatetoaddress 100 <endereco>
 generatetoaddress 1 <endereco>
 getbalance
 ```
 
-A acao rapida "Forjar 1 Bloco" gera um endereco automaticamente com `getnewaddress` e depois executa `generatetoaddress 1 <endereco>`.
+As acoes rapidas de regtest geram endereco automaticamente com `getnewaddress`: **Forjar 1** executa `generatetoaddress 1 <endereco>` e **Forjar 100** executa `generatetoaddress 100 <endereco>` para acelerar a maturacao de recompensas anteriores.
 
 ## Documentacao
 
@@ -120,6 +132,8 @@ A acao rapida "Forjar 1 Bloco" gera um endereco automaticamente com `getnewaddre
 - [Guia de apresentacao do projeto](docs/apresentacao.md)
 - [Tutorial da plataforma](docs/tutorial-plataforma.md)
 - [Redesign da interface IDE](docs/redesign-interface-ide.md)
+- [Refatoracao do painel IDE](docs/refatoracao-painel.md)
+- [Relatorio tecnico do estado atual](docs/relatorio-tecnico-estado-atual.md)
 - [Arquitetura](docs/arquitetura.md)
 - [Fluxos do sistema](docs/fluxos.md)
 - [Modulos e responsabilidades](docs/modulos.md)

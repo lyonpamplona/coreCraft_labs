@@ -1,0 +1,133 @@
+<nav class="ide-activitybar" aria-label="Navegacao principal">
+    <button class="icon-btn active" type="button" data-view="explorer" data-tip="Explorer" aria-label="Abrir explorer de redes"><svg class="icon"><use href="#ico-cube"></use></svg></button>
+    <button class="icon-btn" type="button" data-view="docs" data-tip="Docs" aria-label="Abrir documentacao"><svg class="icon"><use href="#ico-info"></use></svg></button>
+    <button class="icon-btn" type="button" data-view="search" data-tip="Busca" aria-label="Abrir busca"><svg class="icon"><use href="#ico-search"></use></svg></button>
+    <button class="icon-btn" type="button" data-view="flows" data-tip="Fluxos" aria-label="Abrir fluxos"><svg class="icon"><use href="#ico-git"></use></svg></button>
+    <button class="icon-btn" type="button" data-view="run" data-tip="Execucao" aria-label="Abrir execucao de macros"><svg class="icon"><use href="#ico-play"></use></svg></button>
+    <button class="icon-btn" type="button" data-view="settings" data-tip="Ajustes" aria-label="Abrir ajustes visuais"><svg class="icon"><use href="#ico-settings"></use></svg></button>
+</nav>
+<aside class="ide-sidebar">
+    <div class="ide-panel-title"><span id="side-title">Redes</span><svg class="icon"><use href="#ico-database"></use></svg></div>
+    <div class="side-panel active" data-panel="explorer">
+        <div class="ide-networks">
+            <button class="net-btn btn-main" type="button" data-network="mainnet" data-open-view="terminal" data-open-tab="mainnet" onclick="switchNet('mainnet')">
+                <span class="net-dot"></span>
+                <span class="net-label"><strong>mainnet</strong><small>pruned sync</small></span>
+                <svg class="icon"><use href="#ico-zap"></use></svg>
+            </button>
+            <button class="net-btn btn-sig" type="button" data-network="signet" data-open-view="terminal" data-open-tab="signet" onclick="switchNet('signet')">
+                <span class="net-dot"></span>
+                <span class="net-label"><strong>signet</strong><small>sincronizada</small></span>
+                <svg class="icon"><use href="#ico-block"></use></svg>
+            </button>
+            <button class="net-btn btn-reg active" type="button" data-network="regtest" data-open-view="terminal" data-open-tab="regtest" onclick="switchNet('regtest')">
+                <span class="net-dot"></span>
+                <span class="net-label"><strong>regtest</strong><small>wallet corecraft</small></span>
+                <svg class="icon"><use href="#ico-terminal"></use></svg>
+            </button>
+            <button class="net-btn" type="button" data-open-view="docs" data-open-tab="docs">
+                <span class="net-dot" style="background: var(--text-muted);"></span>
+                <span class="net-label"><strong>docs</strong><small>arquitetura</small></span>
+                <svg class="icon"><use href="#ico-info"></use></svg>
+            </button>
+        </div>
+    </div>
+    <div class="side-panel" data-panel="search">
+        <div class="tool-list">
+            <input class="tool-input" id="search-input" type="search" placeholder="Buscar comando, bloco ou tx">
+            <div class="tool-item"><svg class="icon"><use href="#ico-terminal"></use></svg><span><strong>getblockchaininfo</strong><small>rpc.response</small></span><small>cmd</small></div>
+            <div class="tool-item"><svg class="icon"><use href="#ico-database"></use></svg><span><strong>getmempoolinfo</strong><small>mempool.status</small></span><small>cmd</small></div>
+            <div class="tool-item"><svg class="icon"><use href="#ico-block"></use></svg><span><strong>Bloco #87</strong><small>ZMQ rawblock</small></span><small>evt</small></div>
+        </div>
+    </div>
+    <div class="side-panel" data-panel="docs">
+        <div class="tool-list">
+            <button class="tool-item" type="button" data-open-view="docs" data-open-tab="docs" data-doc-topic="arquitetura"><svg class="icon"><use href="#ico-info"></use></svg><span><strong>Arquitetura</strong><small>Servicos, WebSocket, ZMQ e Bitcoin Core</small></span><small>doc</small></button>
+            <button class="tool-item" type="button" data-open-view="docs" data-open-tab="docs" data-doc-topic="comandos"><svg class="icon"><use href="#ico-terminal"></use></svg><span><strong>Comandos</strong><small>Macros RPC e comandos por rede</small></span><small>doc</small></button>
+            <button class="tool-item" type="button" data-open-view="docs" data-open-tab="docs" data-doc-topic="fluxos"><svg class="icon"><use href="#ico-git"></use></svg><span><strong>Fluxos</strong><small>Wallet, mineracao e mempool</small></span><small>doc</small></button>
+            <button class="tool-item" type="button" data-open-view="docs" data-open-tab="docs" data-doc-topic="operacao"><svg class="icon"><use href="#ico-database"></use></svg><span><strong>Operacao</strong><small>Auth, Docker, logs e troubleshooting</small></span><small>doc</small></button>
+        </div>
+    </div>
+    <div class="side-panel" data-panel="flows">
+        <div class="tool-list">
+            <div class="tool-item"><svg class="icon"><use href="#ico-git"></use></svg><span><strong>Sincronizar wallet</strong><small>loadwallet -> getbalance</small></span><small>3</small></div>
+            <div class="tool-item"><svg class="icon"><use href="#ico-hammer"></use></svg><span><strong>Minerar bloco</strong><small>getnewaddress -> generate</small></span><small>2</small></div>
+            <div class="tool-item"><svg class="icon"><use href="#ico-zap"></use></svg><span><strong>Auditar mempool</strong><small>getmempoolinfo -> rawtx</small></span><small>4</small></div>
+        </div>
+    </div>
+    <div class="side-panel" data-panel="run">
+        <div class="tool-list">
+            <select class="tool-select" id="macro-select">
+                <option value="help">help</option>
+                <option value="getblockchaininfo">getblockchaininfo</option>
+                <option value="getmempoolinfo">getmempoolinfo</option>
+                <option value="getnewaddress">getnewaddress</option>
+                <option value="getbalance">getbalance</option>
+            </select>
+            <button class="theme-button" id="run-selected" type="button"><svg class="icon"><use href="#ico-play"></use></svg><span>Executar</span></button>
+            <div class="tool-item"><svg class="icon"><use href="#ico-terminal"></use></svg><span><strong>Terminal</strong><small id="run-active-network">regtest ativo</small></span><small>online</small></div>
+        </div>
+    </div>
+    <div class="side-panel" data-panel="settings">
+        <div class="tool-list">
+            <div class="settings-nav" aria-label="Navegacao de ajustes">
+                <button class="settings-nav-button active" type="button" data-settings-target="preset"><span>Preset</span></button>
+                <button class="settings-nav-button" type="button" data-settings-target="font"><span>Fonte</span></button>
+                <button class="settings-nav-button" type="button" data-settings-target="colors"><span>Cores</span></button>
+                <button class="settings-nav-button" type="button" data-settings-target="interface"><span>Interface</span></button>
+            </div>
+            <div class="settings-group active" data-settings-section="preset">
+                <button class="settings-title" type="button"><span>Preset</span><svg class="icon chevron"><use href="#ico-play"></use></svg></button>
+                <div class="settings-summary">Escolha um pacote visual inicial para cores, contraste e densidade.</div>
+                <div class="settings-body">
+                    <button class="theme-button active" type="button" data-theme-preset="corecraft"><span>coreCraft Dark</span></button>
+                    <button class="theme-button" type="button" data-theme-preset="contrast"><span>Alto Contraste</span></button>
+                    <button class="theme-button" type="button" data-theme-preset="amber"><span>Amber Node</span></button>
+                </div>
+            </div>
+            <div class="settings-group" data-settings-section="font">
+                <button class="settings-title" type="button"><span>Fonte</span><span class="title-meta"><strong>NF</strong><svg class="icon chevron"><use href="#ico-play"></use></svg></span></button>
+                <div class="settings-summary">Selecione a familia mono usada por terminal, cards e labels.</div>
+                <div class="settings-body">
+                    <select class="tool-select" id="font-select">
+                        <option value='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace'>Sistema Mono</option>
+                        <option value='"JetBrains Mono", monospace'>JetBrains Mono</option>
+                        <option value='"JetBrainsMono Nerd Font", "JetBrains Mono", monospace'>JetBrainsMono Nerd Font</option>
+                        <option value='"MesloLGS NF", "MesloLGS Nerd Font", monospace'>MesloLGS NF</option>
+                        <option value='"FiraCode Nerd Font", "Fira Code", monospace'>FiraCode Nerd Font</option>
+                        <option value='"Hack Nerd Font", Hack, monospace'>Hack Nerd Font</option>
+                        <option value='"CaskaydiaCove Nerd Font", "Cascadia Code", monospace'>CaskaydiaCove Nerd Font</option>
+                    </select>
+                    <div class="font-preview"><span>developer@regtest</span><code>nf: e0b0 f013</code></div>
+                </div>
+            </div>
+            <div class="settings-group" data-settings-section="colors">
+                <button class="settings-title" type="button"><span>Cores</span><span class="title-meta"><strong>CSS</strong><svg class="icon chevron"><use href="#ico-play"></use></svg></span></button>
+                <div class="settings-summary">Edite variaveis principais e veja o tema mudar em tempo real.</div>
+                <div class="settings-body color-grid">
+                    <label class="setting-label"><span>Fundo</span><input class="color-input" type="color" data-theme-var="--ide-bg" value="#0d1117"></label>
+                    <label class="setting-label"><span>Topo</span><input class="color-input" type="color" data-theme-var="--ide-top" value="#0a0f16"></label>
+                    <label class="setting-label"><span>Painel</span><input class="color-input" type="color" data-theme-var="--ide-panel" value="#161b22"></label>
+                    <label class="setting-label"><span>Card</span><input class="color-input" type="color" data-theme-var="--ide-panel-soft" value="#111722"></label>
+                    <label class="setting-label"><span>Borda</span><input class="color-input" type="color" data-theme-var="--ide-border" value="#30363d"></label>
+                    <label class="setting-label"><span>Texto</span><input class="color-input" type="color" data-theme-var="--text-primary" value="#d6dee7"></label>
+                    <label class="setting-label"><span>Muted</span><input class="color-input" type="color" data-theme-var="--text-muted" value="#7d8590"></label>
+                    <label class="setting-label"><span>Accent</span><input class="color-input" type="color" data-theme-var="--accent-reg" value="#39d0d8"></label>
+                    <label class="setting-label"><span>Hover</span><input class="color-input" type="color" data-theme-var="--ide-hover" value="#182130"></label>
+                    <label class="setting-label"><span>Status</span><input class="color-input" type="color" data-theme-var="--ide-status-bg" value="#0e639c"></label>
+                </div>
+            </div>
+            <div class="settings-group" data-settings-section="interface">
+                <button class="settings-title" type="button"><span>Interface</span><svg class="icon chevron"><use href="#ico-play"></use></svg></button>
+                <div class="settings-summary">Controle exibicao, fixacao e reset das preferencias visuais.</div>
+                <div class="settings-body">
+                    <div class="setting-row"><span>Compactar timeline</span><span class="toggle" id="toggle-compact" data-ui-toggle="compact"></span></div>
+                    <div class="setting-row"><span>Fixar terminal</span><span class="toggle" id="toggle-fixed-terminal" data-ui-toggle="fixed-terminal"></span></div>
+                    <div class="setting-row"><span>Mostrar rodape</span><span class="toggle active" id="toggle-statusbar" data-ui-toggle="statusbar"></span></div>
+                    <div class="setting-row"><span>Mostrar mainnet</span><span class="toggle active" id="toggle-mainnet" data-ui-toggle="mainnet"></span></div>
+                    <button class="theme-button" id="reset-theme" type="button"><span>Restaurar tema</span></button>
+                </div>
+            </div>
+        </div>
+    </div>
+</aside>

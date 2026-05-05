@@ -33,6 +33,14 @@ Fluxo recomendado:
 3. Coloque o mesmo usuario em `<REDE>_RPC_USER` no `.env`.
 4. Coloque a senha original em `<REDE>_RPC_PASS` no `.env`.
 5. Configure `APP_AUTH_TOKEN` no `.env`; ele sera solicitado pela interface web.
+6. Ajuste `RPC_TIMEOUT_SECONDS`, `RPC_CACHE_SECONDS` e `RPC_ERROR_CACHE_SECONDS` se seus nodes estiverem lentos durante sincronizacao ou pruning.
+
+Opcionalmente, use o script local para sincronizar `rpcauth` a partir das
+senhas do `.env` sem imprimir segredos no terminal:
+
+```bash
+python3 scripts/sync_rpcauth.py --env-file .env --bitcoin-conf bitcoin.conf
+```
 
 ### Subir os Servicos
 
@@ -62,13 +70,13 @@ http://localhost:8005
 
 Se `REQUIRE_AUTH=True`, a plataforma exibira a tela de login solicitando o token. Informe o valor de `APP_AUTH_TOKEN` definido no `.env`.
 
-Depois da validacao, o backend grava um cookie `HttpOnly` para a sessao do painel. O token nao fica salvo em `localStorage` e nao e enviado na URL do WebSocket.
+Depois da validacao, o backend grava um cookie `HttpOnly` para a sessao do painel. O token nao fica salvo em `localStorage` e nao e enviado na URL do WebSocket. As mensagens de sucesso, erro e alerta aparecem como toasts dentro da interface, sem depender de notificacoes nativas do navegador.
 
 ## 3. Conhecer a Tela
 
 ### Shell IDE
 
-A interface usa um layout inspirado em IDE. O cabecalho mostra o comando/contexto ativo, o estado da conexao e o operador. A selecao de rede fica no Explorer lateral e tambem nas abas superiores.
+A interface usa um layout inspirado em IDE. O cabecalho mostra o comando/contexto ativo, o estado da conexao e o operador. A selecao de rede fica no Explorer lateral e tambem nas abas superiores. O painel central alterna entre `rpc.response`, viewer de documentacao e terminal, mantendo a timeline de eventos na lateral direita.
 
 | Item | Descricao |
 | --- | --- |
@@ -85,8 +93,12 @@ Ao trocar de rede, a plataforma:
 - muda a cor de destaque dos cards;
 - limpa a timeline visivel;
 - busca o status atual do node;
-- carrega o ultimo bloco conhecido;
-- mostra o botao **Forjar 1 Bloco** somente em `REGTEST`.
+- carrega o ultimo bloco conhecido quando a rede ativa e `regtest`;
+- mostra o grupo **Endereco**, **Saldo**, **Forjar 100** e **Forjar 1** somente em `REGTEST`.
+
+O painel comeca em `regtest` apos a autenticacao. Quando a preferencia
+**Mostrar mainnet** fica desligada e a rede ativa era `mainnet`, a interface
+volta automaticamente para `regtest`.
 
 ### Activity Bar
 
@@ -95,6 +107,7 @@ A barra vertical esquerda alterna os paineis laterais:
 | Icone | Painel | Funcao |
 | --- | --- | --- |
 | Explorer | Redes | Lista `mainnet`, `signet`, `regtest` e `docs`. |
+| Docs | Documentacao | Abre o menu de guias e troca a area central para o viewer de docs. |
 | Busca | Busca local | Filtra comandos e eventos exibidos no painel lateral. |
 | Fluxos | Automacoes | Lista fluxos operacionais planejados, como wallet e mineracao. |
 | Execucao | Macros | Permite escolher uma macro e executar no terminal da rede ativa. |
@@ -104,36 +117,50 @@ Em telas estreitas, o painel lateral funciona como drawer sobre o conteudo centr
 
 ### Dashboard
 
-O dashboard fica abaixo do cabecalho e tem tres metricas.
+O dashboard fica abaixo do cabecalho e tem tres cards agregados. Eles sao
+alimentados por endpoints `/api/*`, nao por chamadas RPC diretas do navegador.
 
 | Card | Origem | O que significa |
 | --- | --- | --- |
-| `Progresso / Blocos` | `getblockchaininfo` | Mostra a altura atual de blocos. Durante sincronizacao inicial, mostra `SYNC: <percentual>%`. |
-| `Peso no Disco` | `getblockchaininfo.size_on_disk` | Mostra o tamanho ocupado pelo node selecionado. |
-| `Taxas Acumuladas` | `getmempoolinfo.total_fee` | Mostra o total de taxas presentes na mempool quando o node fornece esse dado. |
+| `Node Sync & Divergence` | `/api/blockchain/lag/` + `/api/events/state-comparison/` | Mostra blocos, lag entre headers/blocos e se o melhor bloco RPC diverge do ultimo bloco visto via ZMQ. |
+| `Mempool Intelligence` | `/api/mempool/summary/` | Mostra total de transacoes, fee media em sat/vB e distribuicao Low/Medium/High. |
+| `Event Activity (ZMQ)` | `/api/events/summary/` | Mostra tx/s, transacoes vistas e blocos vistos pelo listener ZMQ. |
 
-As metricas sao atualizadas automaticamente a cada 3 segundos.
+As metricas sao atualizadas automaticamente com polling controlado de 15 segundos,
+trava de concorrencia e backoff temporario quando uma rede demora para responder.
+Quando a mempool passa de 1500 transacoes, o backend evita a varredura profunda
+de `getrawmempool true` e marca a distribuicao como omitida.
 
-### Toolbar do Terminal
+### Toolbar e Comandos do Terminal
 
 | Botao | Comando executado | Observacao |
 | --- | --- | --- |
+| `Info` | `getblockchaininfo` | Mostra status completo da blockchain da rede ativa. |
+| `Peers` | `getpeerinfo` | Lista peers conectados quando o metodo estiver permitido na rede ativa. |
+| `Mempool` | `getmempoolinfo` | Mostra resumo da mempool da rede ativa. |
+| `Taxas (6 blk)` | `estimatesmartfee 6` | Estima a taxa para confirmacao em aproximadamente 6 blocos. |
+| `Endereco` | `getnewaddress` | Gera um novo endereco na carteira regtest. O painel carrega/cria a wallet `corecraft` automaticamente. |
 | `Saldo` | `getbalance` | Consulta saldo da carteira regtest. O painel carrega/cria a wallet `corecraft` automaticamente. |
-| `Novo Endereco` | `getnewaddress` | Gera um novo endereco na carteira regtest. O painel carrega/cria a wallet `corecraft` automaticamente. |
-| `Info Rede` | `getblockchaininfo` | Mostra status completo da blockchain da rede ativa. |
-| `Forjar 1 Bloco` | `loadwallet/createwallet` + `getnewaddress` + `generatetoaddress 1 <endereco>` | Aparece apenas em `REGTEST`. |
+| `Forjar 100` | `loadwallet/createwallet` + `getnewaddress` + `generatetoaddress 100 <endereco>` | Aparece apenas em `REGTEST`; serve para maturar recompensas coinbase anteriores rapidamente. |
+| `Forjar 1` | `loadwallet/createwallet` + `getnewaddress` + `generatetoaddress 1 <endereco>` | Aparece apenas em `REGTEST`; cria um bloco de laboratorio. |
+| `Ajuda` | `help` | Exibe o help real do Bitcoin Core no terminal. |
 | `Limpar` | Acao local | Limpa o terminal ativo e recria o prompt. |
+
+A faixa de comandos e agrupada por rede, mempool, wallet/mineracao e utilitarios.
+O grupo de wallet/mineracao fica oculto em `MAINNET` e `SIGNET`; alem disso,
+`executeMacro` bloqueia esses comandos fora de `REGTEST` mesmo se forem
+disparados manualmente pelo console do navegador.
 
 ### Viewer de Docs
 
-Clique em `docs` no Explorer ou na aba superior `docs` para trocar a area central do terminal para o viewer de documentacao. O viewer exibe cards de:
+Clique em `docs` no Explorer, na Activity Bar ou na aba superior `docs` para trocar a area central do terminal para o viewer de documentacao. O menu de Docs permite escolher:
 
 - Arquitetura;
 - Comandos;
 - Fluxos;
 - Operacao.
 
-Nesta versao, os cards sao uma navegacao visual preparada para receber documentos reais do diretorio `docs/`.
+O viewer mostra resumos operacionais rapidos dentro do painel. A documentacao completa continua no diretorio `docs/`, com arquivos como `arquitetura.md`, `comandos.md`, `fluxos.md`, `configuracao.md` e `bitcoin-cli-docker.md`.
 
 ### Ajustes de Interface
 
@@ -144,9 +171,19 @@ A aba **Ajustes** tem navegacao interna por secoes. Apenas uma secao fica aberta
 | `Preset` | Alterna entre temas predefinidos. |
 | `Fonte` | Seleciona fontes mono e Nerd Fonts quando instaladas no sistema. |
 | `Cores` | Permite editar variaveis principais do tema em tempo real. |
-| `Interface` | Reune toggles visuais e o reset das preferencias. |
+| `Interface` | Reune toggles visuais, incluindo mostrar/ocultar rodape, e o reset das preferencias. |
 
-Tema e fonte sao salvos no `localStorage` do navegador.
+Tema, fonte e preferencias visuais sao salvos no `localStorage` do navegador.
+O terminal usa `xterm-addon-fit` para recalcular colunas e linhas apos resize,
+troca de rede, mudanca de fonte e retorno da aba do navegador.
+
+As preferencias de interface disponiveis hoje sao:
+
+- `Compactar timeline`: reduz a densidade visual da timeline.
+- `Fixar terminal`: aplica modo de terminal fixo no shell.
+- `Mostrar rodape`: mostra ou oculta a statusbar inferior.
+- `Mostrar mainnet`: esconde a mainnet da navegacao visual quando voce quer operar apenas redes de teste.
+- `Restaurar tema`: remove tema, fonte e preferencias salvas, voltando ao preset `coreCraft Dark`.
 
 ### Redimensionamento dos Paineis
 
@@ -172,21 +209,48 @@ Recursos do terminal:
 - `Seta para baixo`: volta no historico.
 - `Tab`: tenta autocompletar comandos conhecidos.
 - `clear`: limpa o terminal ativo.
+- `help`: consulta o help completo real do Bitcoin Core e exibe todas as secoes.
+- `help <categoria>`: filtra uma secao completa do help real, por exemplo `help blockchain`, `help wallet`, `help network`, `help mining`, `help rawtransactions`, `help util` ou `help zmq`.
+- `help <comando>`: quando o argumento nao corresponde a uma categoria, tenta mostrar a ajuda especifica do comando informado.
+
+Categorias esperadas pelo Bitcoin Core nesta plataforma: `blockchain`,
+`control`, `mining`, `network`, `rawtransactions`, `signer`, `util`, `wallet`
+e `zmq`. Exemplos validos:
+
+```text
+help blockchain
+help control
+help mining
+help network
+help rawtransactions
+help signer
+help util
+help wallet
+help zmq
+help getblock
+```
 
 Comandos sugeridos pelo autocomplete:
 
 ```text
 getblockchaininfo
 getmempoolinfo
+estimatesmartfee
 getnewaddress
 getbalance
 generatetoaddress
 sendtoaddress
 getblock
 getblockhash
+inspect_tx
 help
 clear
 ```
+
+O comando especial `inspect_tx` e tratado pelo backend em `core.rpc`: ele aceita
+um txid ou hexadecimal bruto, tenta buscar a transacao via `getrawtransaction`
+quando recebe um txid e retorna um resumo estruturado de entradas, saidas,
+tamanho, coinbase e valor total de saida.
 
 ### Timeline de Consenso
 
@@ -197,13 +261,19 @@ Ela pode mostrar:
 - novos blocos;
 - transacoes recebidas;
 - altura do bloco quando disponivel;
+- hash do bloco quando o evento vem de `hashblock`;
 - tamanho do bloco;
 - quantidade de transacoes;
+- valor total aproximado de saidas para `rawtx` quando a transacao pode ser desserializada;
 - taxas totais quando o evento enriquecido estiver disponivel.
 
 Os cards da timeline usam formato visual com altura, status, hash/resumo, tx, peso, taxas, origem e horario.
+O feed visivel fica limitado aos 18 eventos mais recentes para preservar a
+responsividade e a leitura.
 
 Os eventos saem dos nodes Bitcoin Core por ZMQ, passam pelo `zmq-listener`, sao publicados no Redis/Channels e chegam ao navegador pelo WebSocket `/ws/btc/`.
+Por padrao, `mainnet` e `signet` assinam `rawblock,hashblock`; `regtest`
+tambem assina `rawtx`.
 
 ## 4. Tutorial Pratico em Regtest
 
@@ -231,11 +301,18 @@ No terminal, execute:
 createwallet miner
 ```
 
-O painel tambem consegue carregar ou criar automaticamente a carteira padrao `corecraft` quando voce usa **Saldo**, **Novo Endereco** ou **Forjar 1 Bloco**. O comando manual acima continua util quando voce quer criar uma carteira com outro nome.
+O painel tambem consegue carregar ou criar automaticamente a carteira padrao `corecraft` quando voce usa **Endereco**, **Saldo**, **Forjar 100** ou **Forjar 1**. O comando manual acima continua util quando voce quer criar uma carteira com outro nome.
+
+Para conferir a wallet padrao usada pela interface:
+
+```text
+listwallets
+loadwallet corecraft
+```
 
 ### Gerar um Endereco
 
-Use o botao **Novo Endereco** ou digite:
+Use o botao **Endereco** ou digite:
 
 ```text
 getnewaddress
@@ -263,12 +340,19 @@ Depois consulte o saldo:
 getbalance
 ```
 
-### Minerar Pelo Botao
-
-Clique em:
+Para conferir os detalhes da rede apos minerar:
 
 ```text
-Forjar 1 Bloco
+getblockcount
+getblockchaininfo
+```
+
+### Minerar Pelos Botoes
+
+Para criar um bloco de laboratorio, clique em:
+
+```text
+Forjar 1
 ```
 
 A plataforma executa internamente:
@@ -282,13 +366,24 @@ generatetoaddress 1 <endereco-gerado>
 
 Se a carteira `corecraft` ainda nao existir, a plataforma tenta executar `createwallet corecraft` antes de gerar o endereco.
 
+Para amadurecer recompensas coinbase rapidamente, clique em:
+
+```text
+Forjar 100
+```
+
+Esse atalho executa o mesmo preparo de wallet/endereco e chama
+`generatetoaddress 100 <endereco-gerado>`. Ele e util em demos para amadurecer
+recompensas coinbase anteriores; em uma rede zerada, use **Forjar 1** e depois
+**Forjar 100** para chegar ao periodo de maturacao esperado em regtest.
+
 ### Observar Eventos
 
 Depois de minerar um bloco, observe:
 
 - uma mensagem ZMQ no terminal;
 - um novo card na timeline;
-- atualizacao dos cards de blocos e disco.
+- atualizacao dos cards de Node Sync & Divergence e Event Activity.
 
 ## 5. Usar Signet
 
@@ -308,6 +403,9 @@ getblockcount
 getbestblockhash
 getmempoolinfo
 getnetworkinfo
+getpeerinfo
+help blockchain
+help network
 ```
 
 Comandos fora da allowlist podem ser bloqueados com uma mensagem semelhante a:
@@ -335,34 +433,51 @@ getbestblockhash
 getmempoolinfo
 getnetworkinfo
 getpeerinfo
+help blockchain
+help network
 ```
 
 Comandos de escrita, carteira ou envio de fundos nao devem ser habilitados em mainnet sem uma revisao de seguranca especifica.
 
+Durante sincronizacao inicial ou pruning, chamadas em mainnet podem levar mais tempo.
+O painel usa timeout, cache de consultas read-only e backoff para reduzir loops
+de requisicoes quando o node ainda esta ocupado.
+
 ## 7. Funcoes Internas da Interface
 
-Esta secao mapeia as principais funcoes JavaScript presentes em `templates/index.html`.
+Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
+`static/js/panel/`: `state.js`, `terminal.js`, `ui.js`, `api.js` e `main.js`.
 
 | Funcao | Responsabilidade |
 | --- | --- |
 | `clearLine(t, currentInput)` | Remove visualmente a linha digitada no terminal para permitir reescrita durante historico/autocomplete. |
 | `writePrompt(t, net)` | Escreve o prompt `developer@<rede>:~$` no terminal informado. |
-| `switchNet(net)` | Troca a rede ativa, muda estado visual dos botoes, altera cor dos cards, mostra/esconde mineracao, foca o terminal, limpa a timeline e recarrega status. |
+| `fitTerminal(net)` / `scheduleTerminalFit(net)` | Recalcula colunas e linhas do xterm apos resize, troca de rede, mudanca de fonte ou retorno da aba do navegador. |
+| `focusTerminal(net)` | Foca o terminal ativo, ajusta o tamanho e rola a saida para o final. |
+| `switchNet(net)` | Troca a rede ativa, muda estado visual dos botoes, altera cor dos cards, mostra/esconde o grupo de wallet/mineracao, foca o terminal, limpa a timeline e recarrega status. |
 | `selectMainView(view, tabName)` | Alterna a area central entre terminal e viewer de documentacao. |
-| `selectSidePanel(view)` | Alterna Explorer, Busca, Fluxos, Execucao e Ajustes na barra lateral. |
+| `selectSidePanel(view)` | Alterna Explorer, Docs, Busca, Fluxos, Execucao e Ajustes na barra lateral. |
 | `selectSettingsSection(section)` | Alterna a secao ativa da aba Ajustes. |
 | `applyTheme(values, presetName)` | Aplica variaveis CSS de tema e sincroniza os inputs de cor. |
-| `loadTheme()` / `loadFont()` | Restaura preferencias visuais salvas no navegador. |
+| `loadTheme()` / `loadFont()` / `loadUiPrefs()` | Restaura preferencias visuais salvas no navegador. |
+| `applyStatusbarPreference(visible)` | Mostra ou oculta a barra de rodape sem sobrepor o terminal. |
+| `buildLocalHelpOutput(topic)` | Monta ajuda local de contingencia quando o RPC `help` nao retorna uma categoria real. |
+| `normalizeHelpCategory(category)` | Normaliza nomes e aliases de categorias do `help`, como `rawtx` para `rawtransactions` e `mineracao` para `mining`. |
+| `extractHelpCategoryOutput(fullHelp, category)` | Filtra uma secao completa do `help` real do Bitcoin Core. |
+| `writeTerminalOutput(t, output)` | Escreve saidas no terminal com limite de linhas, exceto para `help`, que pode exibir a saida completa. |
+| `renderRpcResponse(net, cmd, data)` | Atualiza o bloco `rpc.response` com o ultimo retorno RPC ou erro. |
+| `showDocTopic(topic)` | Troca o conteudo do viewer de Docs conforme o item escolhido no menu. |
 | `clearActiveTerminal()` | Limpa o terminal da rede ativa, recria o cabecalho do terminal, zera o input local e devolve o foco. |
 | `authHeaders()` | Monta headers HTTP com `Content-Type: application/json`; chamadas do navegador usam cookie `HttpOnly` apos login. |
 | `handleSocketMessage(e)` | Valida o JSON recebido via WebSocket, escreve mensagens ZMQ no terminal correto e adiciona blocos na timeline quando a rede ativa corresponde ao evento. |
-| `addBlockToFeed(d, time)` | Cria um card visual na timeline com altura, tamanho, quantidade de transacoes e taxas quando disponiveis. |
+| `addBlockToFeed(d, time)` | Cria um card visual na timeline com altura, tamanho, quantidade de transacoes e taxas quando disponiveis, mantendo limite de eventos recentes. |
 | `formatHelpOutput(t, text)` | Formata a saida textual do comando `help`, destacando categorias e comandos. |
 | `processCommand(net, cmd, silent)` | Envia o comando para `/terminal/`, trata erro de token, imprime resultado no terminal ou retorna o JSON em modo silencioso. |
-| `fetchNodeStatus()` | Consulta `getblockchaininfo` e `getmempoolinfo` para atualizar dashboard. |
-| `loadInitialBlocks()` | Busca o melhor bloco atual e adiciona um resumo inicial na timeline. |
-| `executeMacro(cmd)` | Executa comandos dos botoes rapidos no terminal da rede ativa e bloqueia macros de wallet/mineracao fora do regtest. |
-| `mineBlockMacro()` | Automatiza mineracao de um bloco em regtest gerando endereco e chamando `generatetoaddress`. |
+| `fetchNodeStatus()` | Consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/` e `/api/events/state-comparison/` com trava de concorrencia, backoff e pausa quando a aba nao esta visivel. |
+| `loadInitialBlocks()` | Busca `/api/events/latest/` apenas no `regtest` e adiciona o bloco recente na timeline. |
+| `executeMacro(cmd)` | Executa comandos dos botoes rapidos no terminal da rede ativa, envia objetos grandes para `rpc.response`, bloqueia wallet/mineracao fora do regtest e trata o atalho `generatetoaddress 100 [auto]`. |
+| `mineBlockMacro()` | Automatiza mineracao de um bloco em regtest gerando endereco e chamando `generatetoaddress 1 <endereco>`. |
+| `verifyToken(token)` | Valida token inicial ou cookie `HttpOnly` em `/auth/verify/`. |
 | `updateDashboardValue(elementId, newValue)` | Atualiza um valor do dashboard e aplica uma animacao curta de destaque. |
 
 ## 8. Funcoes do Backend Usadas Pela Plataforma
@@ -374,6 +489,11 @@ Esta secao mapeia as principais funcoes JavaScript presentes em `templates/index
 | `core/views.py` | `index` | Renderiza a interface e informa se autenticacao e obrigatoria. |
 | `core/views.py` | `health` | Retorna status simples para healthcheck. |
 | `core/views.py` | `terminal_command` | Recebe comandos HTTP, valida token, faz parsing e executa RPC. |
+| `core/views.py` | `mempool_summary` | Resume mempool, calcula fee media/distribuicao e evita varredura profunda quando a mempool e grande. |
+| `core/views.py` | `blockchain_lag` | Retorna blocos, headers e lag de sincronizacao. |
+| `core/views.py` | `events_summary` | Le Redis para retornar blocos/txs observados e tx/s. |
+| `core/views.py` | `events_latest` | Le Redis para retornar blocos e transacoes recentes. |
+| `core/views.py` | `events_state_comparison` | Compara o melhor bloco RPC com o ultimo bloco visto pelo listener ZMQ. |
 | `core/auth.py` | `auth_is_required` | Indica se a autenticacao por token esta ativa. |
 | `core/auth.py` | `validate_token` | Compara o token recebido com `APP_AUTH_TOKEN`. |
 | `core/auth.py` | `auth_cookie_name` | Retorna o nome do cookie `HttpOnly` usado pelo painel. |
@@ -386,6 +506,8 @@ Esta secao mapeia as principais funcoes JavaScript presentes em `templates/index
 | `core/rpc.py` | `parse_terminal_command` | Converte uma linha digitada em metodo e parametros RPC. |
 | `core/rpc.py` | `ensure_network` | Garante que a rede solicitada existe e esta configurada. |
 | `core/rpc.py` | `ensure_method_allowed` | Aplica allowlist/blocklist de comandos por rede. |
+| `core/rpc.py` | `rpc_cache_key` / `get_cached_rpc` / `store_cached_rpc` | Cacheia chamadas read-only e erros temporarios por TTL configuravel. |
+| `core/rpc.py` | `rpc_key_lock` | Coalesce chamadas RPC identicas em paralelo. |
 | `core/rpc.py` | `rpc_call` | Executa chamada JSON-RPC autenticada contra Bitcoin Core. |
 | `core/consumers.py` | `BTCEventConsumer` | Inscreve o cliente no grupo `btc_events` e encaminha eventos. |
 | `core/zmq_listener.py` | `request_shutdown` | Marca encerramento gracioso quando recebe sinal do sistema. |
@@ -419,6 +541,25 @@ Resposta esperada:
 ```
 
 O formato exato depende do metodo RPC chamado.
+
+O dashboard usa endpoints GET autenticados por cookie ou header:
+
+```bash
+curl "http://localhost:8005/api/blockchain/lag/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/mempool/summary/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/summary/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/latest/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/events/state-comparison/?network=regtest" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+```
 
 Healthcheck:
 
@@ -492,6 +633,25 @@ Possiveis causas:
 - container Bitcoin sem healthcheck saudavel;
 - comando bloqueado pela politica da rede;
 - navegador sem token valido.
+- aba do navegador oculta, pois o polling pausa quando `document.hidden`;
+- rede em backoff temporario apos falha nas APIs agregadas;
+- Redis indisponivel ou sem listas `zmq:<rede>:blocks`/`zmq:<rede>:txs` populadas.
+
+Para diagnosticar, use:
+
+```bash
+docker compose ps
+docker compose logs -f web-app
+```
+
+E compare com uma chamada direta:
+
+```bash
+curl -X POST http://localhost:8005/terminal/ \
+  -H "Content-Type: application/json" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>" \
+  --data '{"network":"regtest","command":"getblockchaininfo"}'
+```
 
 ### xterm.js nao carrega
 

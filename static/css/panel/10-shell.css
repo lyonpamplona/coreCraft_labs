@@ -1,0 +1,145 @@
+        /* IDE redesign */
+        :root {
+            --ide-bg: #0d1117;
+            --ide-top: #0a0f16;
+            --ide-panel: #161b22;
+            --ide-panel-soft: #111722;
+            --ide-border: #30363d;
+            --ide-blue: #58a6ff;
+            --ide-yellow: #d29922;
+            --ide-red: #f85149;
+            --ide-hover: #182130;
+            --ide-tab-bg: #0f141b;
+            --ide-terminal-bg: #05080d;
+            --ide-status-bg: #0e639c;
+            --scroll-track: #0a0f16;
+            --scroll-thumb: #30363d;
+            --scroll-thumb-hover: #58a6ff;
+            --sidebar-width: 236px;
+            --rightbar-width: 300px;
+            --terminal-height: 218px;
+            --actions-width: 220px;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+        }
+
+        *::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: var(--scroll-track);
+            border-left: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border: 2px solid var(--scroll-track);
+            border-radius: 999px;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: var(--scroll-thumb-hover);
+        }
+
+        *::-webkit-scrollbar-corner {
+            background: var(--scroll-track);
+        }
+
+        body {
+            display: block;
+            background: var(--ide-bg);
+            background-image: none;
+            min-height: 0;
+        }
+
+        svg.icon {
+            width: 18px;
+            height: 18px;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            flex: 0 0 auto;
+        }
+
+        .ide-shell {
+            height: 100vh;
+            height: 100dvh;
+            display: grid;
+            grid-template-rows: 34px minmax(0, 1fr) 24px;
+            color: var(--text-primary);
+            background: var(--ide-bg);
+            overflow: hidden;
+        }
+
+        .ide-shell.statusbar-hidden {
+            grid-template-rows: 34px minmax(0, 1fr) 0;
+        }
+
+        .ide-shell.statusbar-hidden .statusbar {
+            display: none;
+        }
+
+        .ide-topbar {
+            display: grid;
+            grid-template-columns: 220px minmax(0, 1fr) 220px;
+            align-items: center;
+            background: var(--ide-top);
+            border-bottom: 1px solid var(--ide-border);
+            color: var(--text-muted);
+            min-width: 0;
+        }
+
+        .ide-brand,
+        .ide-operator,
+        .ide-command {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 0;
+        }
+
+        .ide-brand {
+            padding: 0 0.85rem;
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+
+        .ide-command {
+            justify-self: center;
+            width: min(440px, 86%);
+            height: 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 10px;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-panel-soft);
+            color: var(--text-muted);
+            font-size: 12px;
+            min-width: 0;
+        }
+
+        .ide-command span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .ide-operator {
+            justify-self: end;
+            padding-right: 12px;
+            font-size: 12px;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+

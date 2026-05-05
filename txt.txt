@@ -1,0 +1,71 @@
+🚀 coreCraft: O Command Center Definitivo para Desenvolvimento Bitcoin
+🎯 1. O Problema: O Caos do Desenvolvimento Bitcoin
+
+Para construir sistemas reais sobre o Bitcoin (como Exchanges, Gateways de Pagamento ou Wallets), um engenheiro precisa rodar um Node Bitcoin Core. Porém, interagir com esse nó nativamente é hostil:
+
+    O desenvolvedor precisa manter múltiplos terminais abertos para rodar o bitcoin-cli.
+
+    O acompanhamento da rede em tempo real exige scripts customizados complexos lendo portas ZMQ.
+
+    Os dados retornados pela rede são hexadecimais brutos e ilegíveis para humanos.
+
+    Não existe uma interface unificada para comparar redes (Mainnet, Signet, Regtest) simultaneamente.
+
+💡 2. A Solução: coreCraft
+
+O coreCraft é um laboratório de infraestrutura Bitcoin local envelopado em uma interface web com design de IDE (Integrated Development Environment).
+
+Ele atua como uma ponte inteligente entre o desenvolvedor e o protocolo Bitcoin. O sistema não apenas repassa comandos, mas interpreta a blockchain, decodifica criptografia em tempo real e fornece métricas vitais de consenso, tudo em uma única tela.
+⚙️ 3. Principais Funcionalidades (O que o sistema faz?)
+🌐 A. Gestão Multi-Ambiente Nativa
+
+A alternância entre redes ocorre em um clique.
+
+    Regtest: Um ambiente isolado (sandbox) onde o usuário possui botões rápidos para criar carteiras, gerar endereços, consultar saldo e "forjar" 1 ou 100 blocos instantaneamente para testar lógicas financeiras e maturação de coinbase.
+
+    Signet & Mainnet: Conectado à rede global para auditoria, protegido por um escudo Anti-DoS e políticas de Read-Only para garantir que não haja vazamento de fundos ou travamento do servidor. O grupo de wallet/mineração fica oculto e bloqueado fora do Regtest.
+
+🧠 B. Dashboard de Inteligência de Consenso
+
+O servidor Python analisa ativamente a saúde da rede e projeta os dados em 3 painéis:
+
+    Node Sync & Divergence: Compara os Headers (o que a rede diz ser a ponta) com os Blocks (o que o seu nó já validou), mostrando o Lag. Criticamente, cruza a resposta RPC com os eventos ZMQ em memória para alertar sobre Divergências e possíveis Reorgs (reorganizações de cadeia).
+
+    Mempool Intelligence: Em vez de apenas mostrar o tamanho da mempool, o sistema mapeia dinamicamente os fees (taxas) de todas as transações, classificando-as em blocos de prioridade (Low, Medium, High). A toolbar também oferece Taxas (6 blk), que executa estimatesmartfee 6 para estimativa rápida.
+
+    Event Activity: Mede o fluxo da rede em tempo real, calculando ativamente as Transações por Segundo (TX/s).
+
+🔍 C. Motor de Inspecção e Tradução (inspect_tx)
+
+Com o comando customizado inspect_tx <txid>, o desenvolvedor não precisa lidar com hexadecimais. O backend intercepta o comando, varre o nó Bitcoin, utiliza python-bitcoinlib para decodificar o binário e devolve um JSON visual e colorido no painel rpc.response, exibindo Satoshis convertidos em BTC, locktimes e matrizes de entrada/saída.
+⚡ D. Timeline de Eventos ZMQ em Tempo Real
+
+Conectado diretamente ao "coração" do nó Bitcoin, o painel exibe uma Timeline que pisca em tempo real a cada nova transação ou bloco minerado no mundo, com os valores financeiros (BTC) e o tamanho dos dados calculados em nanossegundos.
+🏗️ 4. A Arquitetura (Como funciona por baixo do capô?)
+
+O projeto é construído sobre uma arquitetura de microsserviços resiliente, utilizando Docker:
+
+    Camada de Consenso (Bitcoin Core): Três containers independentes rodando o protocolo nativo (btc-mainnet, btc-signet, btc-regtest).
+
+    Camada de Eventos (ZMQ + Redis): Um Listener em Python assina as portas ZMQ dos nós. Quando uma transação acontece, ele decodifica, salva na memória ultrarrápida do Redis e emite um sinal.
+
+    Camada de Backend (Django + ASGI): O cérebro do sistema. Gerencia autenticação via Cookies seguros (HttpOnly), roteia comandos RPC (aplicando lock, cache e timeouts) e fornece os Endpoints REST de inteligência (/api/mempool/summary).
+
+    Camada de Frontend (ES6 Modules + WebSockets): Uma SPA (Single Page Application) robusta e modularizada. Usa WebSockets para receber os dados do Redis em tempo real, XTerm.js para emular um terminal real no navegador e módulos dedicados para estado, UI, terminal, API e bootstrap.
+
+🌍 5. Utilidade no Mundo Real (Para que serve?)
+
+Se você for apresentar este projeto para uma empresa, instituição educacional ou equipe de TI, aqui estão os casos de uso reais:
+
+    🛠️ Construção de Fintechs e Gateways de Pagamento:
+    Antes de uma exchange colocar um sistema de saques/depósitos no ar, ela precisa testar como seu software reage a transações lentas, reorgs de blocos ou picos de taxas na mempool. O coreCraft permite que a equipe simule todos esses cenários no Regtest de forma visual, barata e segura, garantindo que o software da empresa não perca dinheiro na vida real.
+
+    📊 Otimização de Algoritmos de Taxas (Fee Estimation):
+    Empresas que lidam com Bitcoin precisam saber calcular taxas dinâmicas para não pagar muito caro nem ter suas transações "presas". O painel de Mempool Intelligence do coreCraft fornece exatamente a visualização de dados necessária para engenheiros criarem algoritmos eficientes de economia de taxas.
+
+    🎓 Educação e Onboarding de Desenvolvedores Web3:
+    O ecossistema Bitcoin tem uma barreira de entrada técnica gigantesca. O coreCraft serve como a ferramenta perfeita para ensinar novos desenvolvedores corporativos como blocos, transações, ZMQ e RPC funcionam juntos, reduzindo o tempo de treinamento de semanas para dias.
+
+🎯 Resumo de Impacto
+
+O coreCraft pegou uma tecnologia de infraestrutura árida (o daemon do Bitcoin Core) e a transformou em um produto de software moderno, observável e analítico. Ele prova que é possível ter total soberania tecnológica (rodar seu próprio nó) sem abrir mão da melhor experiência de desenvolvimento (UX) do mercado de tecnologia.

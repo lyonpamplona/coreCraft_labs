@@ -1,0 +1,166 @@
+        #workspace {
+            min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            overflow: hidden;
+            background: var(--ide-terminal-bg);
+            contain: paint;
+        }
+
+        .main-view {
+            min-width: 0;
+            min-height: 0;
+            display: none;
+        }
+
+        .main-view.active {
+            display: block;
+        }
+
+        #terminal-wrapper {
+            min-width: 0;
+            min-height: 0;
+            border-right: 0;
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr);
+            overflow: hidden;
+        }
+
+        #terminal-wrapper.active {
+            display: grid;
+        }
+
+        #terminal-wrapper.main-view.active {
+            display: grid;
+        }
+
+        .terminal-toolbar {
+            background: var(--ide-bg);
+            border-bottom: 1px solid var(--ide-border);
+            padding: 0.65rem 0.875rem;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-areas:
+                "title actions"
+                "commands commands";
+            gap: 0.75rem;
+            align-items: center;
+        }
+
+        .toolbar-title {
+            grid-area: title;
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+        }
+
+        .ide-actions {
+            grid-area: actions;
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+            justify-content: flex-end;
+        }
+
+        .terminal-command-strip {
+            grid-area: commands;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 0.45rem;
+            min-width: 0;
+        }
+
+        .terminal-command-button {
+            min-width: 0;
+            height: 34px;
+            border: 1px solid var(--ide-border);
+            border-radius: 7px;
+            background: var(--ide-panel-soft);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            cursor: pointer;
+            padding: 0 0.5rem;
+        }
+
+        .terminal-command-button:hover {
+            color: var(--text-primary);
+            border-color: var(--accent-reg);
+            background: var(--ide-hover);
+        }
+
+        .terminal-command-button span {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.68rem;
+        }
+
+        .btn {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            border: 1px solid var(--ide-border);
+            border-radius: 8px;
+            background: rgba(22, 27, 34, 0.72);
+            color: var(--text-primary);
+            display: grid;
+            place-items: center;
+            position: relative;
+        }
+
+        .btn:hover {
+            background: var(--ide-hover);
+            border-color: var(--ide-blue);
+        }
+
+        .btn[data-tip]:hover::after {
+            content: attr(data-tip);
+            position: absolute;
+            right: 0;
+            top: 42px;
+            z-index: 55;
+            white-space: nowrap;
+            padding: 5px 8px;
+            border: 1px solid var(--ide-border);
+            border-radius: 6px;
+            background: var(--ide-top);
+            color: var(--text-primary);
+            font-size: 0.72rem;
+            box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+        }
+
+        .btn-danger {
+            border-color: rgba(248, 81, 73, 0.45);
+            color: var(--ide-red);
+        }
+
+        .toolbar-separator {
+            width: 1px;
+            height: 26px;
+            background: var(--ide-border);
+            margin: 0 0.2rem;
+        }
+
+        #terminal-container {
+            min-height: 0;
+            position: relative;
+            background: var(--ide-terminal-bg);
+            overflow: hidden;
+            contain: paint;
+        }
+
+        .term-panel {
+            display: none;
+            position: absolute;
+            inset: 0;
+            padding: 0.75rem;
+            overflow: hidden;
+        }
+
+        .term-panel.active { display: block; }
+
