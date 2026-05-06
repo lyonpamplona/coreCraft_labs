@@ -2,42 +2,44 @@
 
 O modulo entrega a interface web, valida autenticacao por token, encaminha
 comandos RPC para o Bitcoin Core e expoe endpoints agregados usados pelo
-dashboard de sincronizacao, mempool e eventos observados via ZMQ/Redis.
+dashboard de sincronizacao, mempool, eventos ZMQ/Redis e faucet Signet.
 """
 
 import json
 import os
-
 import redis
 from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_GET, require_POST
-
 from .auth import auth_cookie_name, token_from_request, validate_token
 from .rpc import RPCParseError, RPCPolicyError, parse_terminal_command, rpc_call
 
 
 def get_redis_client():
     """Cria cliente Redis para consultar os resumos mantidos pelo listener ZMQ."""
+
     return redis.from_url(os.getenv("REDIS_URL", "redis://redis:6379/0"))
 
 
 @require_GET
 def index(request):
     """Renderiza a interface principal do command center."""
+
     return render(request, 'index.html', {"require_auth": settings.REQUIRE_AUTH})
 
 
 @require_GET
 def health(request):
     """Endpoint simples de healthcheck HTTP para Docker e diagnostico local."""
+
     return JsonResponse({"status": "ok"})
 
 
 @require_POST
 def auth_verify(request):
     """Valida o token do painel e renova o cookie seguro de autenticacao."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"authenticated": False, "error": "Token invalido"}, status=401)
     response = JsonResponse({"authenticated": True})
@@ -56,6 +58,7 @@ def auth_verify(request):
 @require_POST
 def auth_logout(request):
     """Remove o cookie de autenticacao usado pela interface web."""
+
     response = JsonResponse({"authenticated": False})
     response.delete_cookie(auth_cookie_name(), samesite="Lax")
     return response
@@ -64,6 +67,7 @@ def auth_logout(request):
 @require_POST
 def terminal_command(request):
     """Recebe comandos do terminal web e repassa ao Bitcoin Core via RPC."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token de acesso invalido ou ausente"}, status=401)
     try:
@@ -87,16 +91,16 @@ def mempool_summary(request):
 
     Para evitar varreduras caras em mempools grandes, consulta primeiro
     ``getmempoolinfo`` e omite a distribuicao de fees quando o tamanho passa do
-    limite configurado no codigo.
+    limite configurado.
     """
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token invalido"}, status=401)
     network = request.GET.get("network", "regtest")
     try:
-        # Escudo Anti-DoS: Avalia o tamanho antes de pedir varredura profunda
         info = rpc_call(network, "getmempoolinfo")
         if "error" in info and info["error"]:
-            return JsonResponse(info)  # 200 OK com payload de erro embutido
+            return JsonResponse(info)
 
         size = info.get("result", {}).get("size", 0)
         if size > 1500:
@@ -107,7 +111,7 @@ def mempool_summary(request):
                 "min_fee_rate": 0,
                 "max_fee_rate": 0,
                 "fee_distribution": {"low": 0, "medium": 0, "high": 0},
-                "warning": "Extensa"
+                "warning": "Extensa",
             })
 
         mempool_data = rpc_call(network, "getrawmempool", [True])
@@ -151,11 +155,7 @@ def mempool_summary(request):
             "avg_fee_rate": round(avg_fee_rate, 2),
             "min_fee_rate": round(min_fee_rate, 2),
             "max_fee_rate": round(max_fee_rate, 2),
-            "fee_distribution": {
-                "low": low,
-                "medium": medium,
-                "high": high
-            }
+            "fee_distribution": {"low": low, "medium": medium, "high": high},
         })
     except Exception as e:
         return JsonResponse({"error": str(e)})
@@ -163,7 +163,8 @@ def mempool_summary(request):
 
 @require_GET
 def blockchain_lag(request):
-    """Retorna altura, headers e diferenca de sincronizacao da rede."""
+    """Retorna altura, headers, lag, IBD e progresso de verificacao da rede."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token invalido"}, status=401)
     network = request.GET.get("network", "regtest")
@@ -177,10 +178,15 @@ def blockchain_lag(request):
         headers = result.get("headers", 0)
         lag = headers - blocks
 
+        ibd = result.get("initialblockdownload", False)
+        progress = result.get("verificationprogress", 0)
+
         return JsonResponse({
             "blocks": blocks,
             "headers": headers,
-            "lag": lag
+            "lag": lag,
+            "ibd": ibd,
+            "progress": progress,
         })
     except Exception as e:
         return JsonResponse({"error": str(e)})
@@ -189,6 +195,7 @@ def blockchain_lag(request):
 @require_GET
 def events_summary(request):
     """Resume eventos ZMQ persistidos em Redis para o card Event Activity."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token invalido"}, status=401)
     network = request.GET.get("network", "regtest")
@@ -214,7 +221,7 @@ def events_summary(request):
             "blocks_observed": blocks_len,
             "tx_observed": txs_len,
             "last_event_time": last_time,
-            "tx_per_second": round(tx_per_second, 2)
+            "tx_per_second": round(tx_per_second, 2),
         })
     except Exception as e:
         return JsonResponse({"error": str(e)})
@@ -223,6 +230,7 @@ def events_summary(request):
 @require_GET
 def events_latest(request):
     """Retorna os blocos e transacoes mais recentes registrados pelo listener."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token invalido"}, status=401)
     network = request.GET.get("network", "regtest")
@@ -230,14 +238,9 @@ def events_latest(request):
     try:
         blocks_raw = r.lrange(f"zmq:{network}:blocks", 0, 4)
         txs_raw = r.lrange(f"zmq:{network}:txs", 0, 9)
-
         blocks = [json.loads(b) for b in blocks_raw]
         txs = [json.loads(t) for t in txs_raw]
-
-        return JsonResponse({
-            "blocks": blocks,
-            "txs": txs
-        })
+        return JsonResponse({"blocks": blocks, "txs": txs})
     except Exception as e:
         return JsonResponse({"error": str(e)})
 
@@ -245,6 +248,7 @@ def events_latest(request):
 @require_GET
 def events_state_comparison(request):
     """Compara melhor bloco RPC com ultimo bloco observado via ZMQ/Redis."""
+
     if not validate_token(token_from_request(request)):
         return JsonResponse({"error": "Token invalido"}, status=401)
     network = request.GET.get("network", "regtest")
@@ -255,7 +259,6 @@ def events_state_comparison(request):
             return JsonResponse(info)
 
         best_block = info.get("result")
-
         last_seen_raw = r.lindex(f"zmq:{network}:blocks", 0)
         last_seen_block = json.loads(last_seen_raw).get("hash") if last_seen_raw else None
 
@@ -266,7 +269,68 @@ def events_state_comparison(request):
         return JsonResponse({
             "best_block": best_block,
             "last_seen_block": last_seen_block,
-            "divergence": divergence
+            "divergence": divergence,
         })
     except Exception as e:
         return JsonResponse({"error": str(e)})
+
+
+@require_GET
+def faucet_balance(request):
+    """Consulta o saldo da wallet interna `corecraft_faucet` em Signet."""
+
+    if not validate_token(token_from_request(request)):
+        return JsonResponse({"error": "Token de acesso invalido"}, status=401)
+    network = request.GET.get("network", "signet")
+    try:
+        rpc_call(network, "loadwallet", ["corecraft_faucet"], bypass_policy=True)
+        balance_info = rpc_call(network, "getbalance", [], bypass_policy=True)
+        if "error" in balance_info and balance_info["error"]:
+            return JsonResponse({"balance": 0, "error": "Wallet nao encontrada"})
+        balance = float(balance_info.get("result", 0))
+        return JsonResponse({"balance": balance})
+    except Exception as e:
+        return JsonResponse({"balance": 0, "error": str(e)}, status=500)
+
+
+@require_POST
+def faucet_dispense(request):
+    """Envia 0.01 sBTC da wallet interna para um endereco novo em Signet.
+
+    A view nao aceita valor nem endereco arbitrario do cliente. O backend gera
+    o destino e usa ``bypass_policy`` apenas para esta operacao controlada.
+    """
+
+    if not validate_token(token_from_request(request)):
+        return JsonResponse({"error": "Token de acesso invalido"}, status=401)
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "JSON invalido"}, status=400)
+
+    network = data.get("network", "signet")
+    amount = 0.01
+
+    try:
+        rpc_call(network, "loadwallet", ["corecraft_faucet"], bypass_policy=True)
+        balance_info = rpc_call(network, "getbalance", [], bypass_policy=True)
+        if "error" in balance_info and balance_info["error"]:
+            return JsonResponse({"error": "A carteira 'corecraft_faucet' nao existe."}, status=400)
+
+        balance = float(balance_info.get("result", 0))
+        if balance < amount:
+            return JsonResponse({"error": f"A Faucet esta seca (Saldo: {balance} sBTC)."}, status=400)
+
+        addr_info = rpc_call(network, "getnewaddress", [], bypass_policy=True)
+        if "error" in addr_info and addr_info["error"]:
+            return JsonResponse({"error": "Falha ao gerar endereco de destino."}, status=400)
+
+        address = addr_info.get("result")
+        tx_info = rpc_call(network, "sendtoaddress", [address, amount], bypass_policy=True)
+        if "error" in tx_info and tx_info["error"]:
+            error_msg = tx_info["error"].get("message", str(tx_info["error"]))
+            return JsonResponse({"error": f"Erro ao enviar: {error_msg}"}, status=400)
+
+        return JsonResponse({"txid": tx_info.get("result"), "amount": amount, "address": address})
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

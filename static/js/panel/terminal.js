@@ -128,7 +128,7 @@ export function extractHelpCategoryOutput(fullHelp, category) {
     return selected.length ? selected.join('\n').trimEnd() : '';
 }
 
-/** Cria e registra uma instancia xterm.js para cada rede suportada. */
+/** Cria instancias xterm.js para cada rede e observa resize do container. */
 export function initTerminals() {
     CONSTANTS.networks.forEach(net => {
         const t = new Terminal({
@@ -149,7 +149,6 @@ export function initTerminals() {
         t.writeln('\x1b[1;33mdeveloper corecraft | v3.0 Multi-Node\x1b[0m');
         t.writeln(`\x1b[38;5;242mInstancia Conectada: \x1b[1;36m${net.toUpperCase()}\x1b[0m\r\n`);
         writePrompt(t, net);
-
         t.onData(e => {
             if (state.currentNet !== net) return;
             if (e === '\r') {
@@ -213,5 +212,11 @@ export function initTerminals() {
         });
         state.terminals[net] = t;
     });
+
+    const container = document.getElementById('terminal-container');
+    if (container) {
+        const resizeObserver = new ResizeObserver(() => scheduleTerminalFit());
+        resizeObserver.observe(container);
+    }
     scheduleTerminalFit();
 }

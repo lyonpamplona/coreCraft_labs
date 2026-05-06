@@ -6,9 +6,8 @@ import { submitLogin, startApp, fetchNodeStatus, executeMacro, mineBlockMacro, v
 /**
  * Bootstrap do painel.
  *
- * Este modulo conecta os componentes HTML aos modulos de estado, UI, terminal
- * e API. Ele tambem expoe alguns handlers em `window` para preservar os
- * atributos `onclick` existentes no template.
+ * Conecta componentes HTML aos modulos de estado, UI, terminal e API. Tambem
+ * expoe handlers em `window` para preservar atributos usados pelos templates.
  */
 window.switchNet = switchNet;
 window.executeMacro = executeMacro;
@@ -149,7 +148,6 @@ document.querySelectorAll('.resize-handle').forEach(handle => {
     });
 });
 
-window.addEventListener('resize', () => scheduleTerminalFit());
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) { scheduleTerminalFit(); fetchNodeStatus({ force: true }); }
 });

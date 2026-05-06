@@ -47,7 +47,7 @@ export function escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
-/** Troca a rede ativa, sincroniza a UI e oculta comandos de wallet fora do regtest. */
+/** Troca a rede ativa, sincroniza a UI e exibe comandos permitidos por rede. */
 export function switchNet(net) {
     state.currentNet = net;
     selectMainView('terminal', net);
@@ -59,8 +59,23 @@ export function switchNet(net) {
 
     const walletGroup = document.getElementById('terminal-wallet-group');
     const walletSep = document.getElementById('wallet-separator');
-    if (walletGroup) walletGroup.style.display = net === 'regtest' ? 'flex' : 'none';
-    if (walletSep) walletSep.style.display = net === 'regtest' ? 'block' : 'none';
+
+    const btnAddress = document.getElementById('btn-wallet-address');
+    const btnBalance = document.getElementById('btn-wallet-balance');
+    const btnFaucet = document.getElementById('btn-faucet');
+    const btnForge100 = document.getElementById('btn-forge-100');
+    const btnForge1 = document.getElementById('btn-forge-1');
+
+    // Regtest mostra wallet/mineracao; Signet mostra apenas a faucet.
+    if (walletGroup) walletGroup.style.display = (net === 'regtest' || net === 'signet') ? 'flex' : 'none';
+    if (walletSep) walletSep.style.display = (net === 'regtest' || net === 'signet') ? 'block' : 'none';
+
+    // Liga e desliga botoes especificos por rede.
+    if (btnAddress) btnAddress.style.display = net === 'regtest' ? 'flex' : 'none';
+    if (btnBalance) btnBalance.style.display = net === 'regtest' ? 'flex' : 'none';
+    if (btnForge100) btnForge100.style.display = net === 'regtest' ? 'flex' : 'none';
+    if (btnForge1) btnForge1.style.display = net === 'regtest' ? 'flex' : 'none';
+    if (btnFaucet) btnFaucet.style.display = net === 'signet' ? 'flex' : 'none';
 
     updateCommandAvailability(net);
 

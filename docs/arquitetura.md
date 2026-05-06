@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-O coreCraft Multi-Node e um painel local para operar e observar tres nodes Bitcoin Core: `mainnet`, `signet` e `regtest`. A interface permite executar RPC por rede, acompanhar sincronizacao, divergencia, mempool e atividade ZMQ, alem de receber eventos em tempo real via WebSocket.
+O coreCraft Multi-Node e um painel local para operar e observar tres nodes Bitcoin Core: `mainnet`, `signet` e `regtest`. A interface permite executar RPC por rede, acompanhar sincronizacao, divergencia, mempool e atividade ZMQ, acionar uma faucet controlada em Signet e receber eventos em tempo real via WebSocket.
 
 ## Componentes
 
@@ -12,6 +12,7 @@ flowchart LR
     Browser -->|POST /auth/verify/<br>token inicial| Web
     Browser -->|POST /terminal/<br>cookie/header + command + network| Web
     Browser -->|GET /api/*<br>dashboard agregado| Web
+    Browser -->|POST /api/faucet/dispense/<br>faucet Signet| Web
     Browser <-->|WebSocket /ws/btc/<br>cookie + Origin| Web
 
     Web -->|RPC HTTP| Main[btc-mainnet]
@@ -42,11 +43,11 @@ flowchart LR
 
 ### Frontend
 
-`templates/index.html` contem o shell do painel e inclui componentes HTML de `templates/components/`. A experiencia visual foi separada em `static/css/panel.css` como agregador e em arquivos menores dentro de `static/css/panel/`. O comportamento fica em `static/js/panel/main.js`, `state.js`, `ui.js`, `terminal.js` e `api.js`, cobrindo estado compartilhado, inicializacao xterm.js/FitAddon, historico por rede, macros, WebSocket, polling de APIs agregadas e filtro de `help` por categoria.
+`templates/index.html` contem o shell do painel e inclui componentes HTML de `templates/components/`. A experiencia visual foi separada em `static/css/panel.css` como agregador e em arquivos menores dentro de `static/css/panel/`. xterm.js e FitAddon sao servidos localmente por `static/js/vendor/` e `static/css/vendor/`. O comportamento fica em `static/js/panel/main.js`, `state.js`, `ui.js`, `terminal.js` e `api.js`, cobrindo estado compartilhado, inicializacao xterm.js/FitAddon, historico por rede, macros, faucet Signet, WebSocket, polling de APIs agregadas e filtro de `help` por categoria.
 
 ### Backend HTTP
 
-`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly`, recebe comandos de `/terminal/` e expoe endpoints `/api/*` para o dashboard. Comandos livres continuam delegados para `core.rpc`; os endpoints agregados combinam RPC e Redis para entregar lag de sincronizacao, resumo de mempool, atividade ZMQ e comparacao entre melhor bloco RPC e ultimo bloco observado pelo listener.
+`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly`, recebe comandos de `/terminal/` e expoe endpoints `/api/*` para o dashboard. Comandos livres continuam delegados para `core.rpc`; os endpoints agregados combinam RPC e Redis para entregar lag de sincronizacao, resumo de mempool, atividade ZMQ e comparacao entre melhor bloco RPC e ultimo bloco observado pelo listener. Os endpoints `/api/faucet/balance/` e `/api/faucet/dispense/` operam a wallet Signet `corecraft_faucet` com valor fixo e destino gerado no backend.
 
 ### Backend ASGI/WebSocket
 
@@ -60,5 +61,5 @@ flowchart LR
 
 - A autenticacao atual usa token compartilhado com cookie `HttpOnly`, nao usuarios individuais.
 - `bitcoin.conf` real e local/ignorado; mantenha apenas `bitcoin.conf.example` versionado.
-- O frontend ainda e vanilla HTML/CSS/JS, mas ja esta separado em template, CSS e JS estaticos.
-- xterm.js e xterm-addon-fit ainda sao carregados via CDN; servir localmente segue como melhoria planejada.
+- O frontend ainda e vanilla HTML/CSS/JS, mas ja esta separado em template, CSS, JS estaticos e vendors locais.
+- A faucet Signet depende da wallet local `corecraft_faucet` existir e ter saldo; ela nao substitui uma faucet publica.

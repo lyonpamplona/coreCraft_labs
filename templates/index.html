@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>coreCraft | Multi-Node</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.1.0/css/xterm.css">
-    <script src="https://cdn.jsdelivr.net/npm/xterm@5.1.0/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.7.0/lib/xterm-addon-fit.js"></script>
+    <link rel="stylesheet" href="{% static 'css/vendor/xterm.css' %}">
+    <script src="{% static 'js/vendor/xterm.js' %}"></script>
+    <script src="{% static 'js/vendor/xterm-addon-fit.js' %}"></script>
     <link rel="stylesheet" href="{% static 'css/panel.css' %}?v=20260504">
 </head>
 <body data-require-auth="{{ require_auth|yesno:'true,false' }}">

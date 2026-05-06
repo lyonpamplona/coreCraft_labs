@@ -16,6 +16,7 @@ Em uma demonstracao, o projeto deve ser apresentado como:
 - uma interface web para executar comandos RPC;
 - uma ponte de eventos em tempo real usando ZMQ, Redis e WebSocket;
 - um ambiente seguro para experimentos em `regtest`;
+- uma faucet operacional em `signet` para demonstrar fluxo de wallet sem valor real;
 - um dashboard para comparar estado RPC, mempool e eventos observados;
 - um motor de inspecao para transacoes via `inspect_tx`;
 - uma base para evoluir automacoes, dashboards e ferramentas de ensino.
@@ -36,10 +37,10 @@ Em uma demonstracao, o projeto deve ser apresentado como:
 | Estado | `static/js/panel/state.js` | Constantes, temas, topicos de docs, ajuda local, redes suportadas e estado mutavel da sessao. |
 | UI | `static/js/panel/ui.js` | Navegacao, troca de rede, viewer JSON/docs, timeline, toasts, temas, fontes e preferencias visuais. |
 | Terminal | `static/js/panel/terminal.js` | Instancias xterm.js, prompt, resize, historico, autocomplete, saida formatada e filtro de `help`. |
-| API frontend | `static/js/panel/api.js` | Login, WebSocket, eventos ZMQ, comandos RPC, chamadas `/api/*`, polling do dashboard, wallet regtest e macros. |
+| API frontend | `static/js/panel/api.js` | Login, WebSocket, eventos ZMQ, comandos RPC, chamadas `/api/*`, polling do dashboard, faucet Signet, wallet regtest e macros. |
 | Bootstrap | `static/js/panel/main.js` | Listeners do DOM, resize handles, exposicao de handlers globais e inicializacao do painel. |
-| HTTP | `core/views.py` | Entrega a pagina inicial, healthcheck, autenticacao, `/terminal/` e APIs agregadas do dashboard. |
-| RPC | `core/rpc.py` | Faz parsing de comandos, aplica politicas por rede, timeout/cache e chama JSON-RPC. |
+| HTTP | `core/views.py` | Entrega a pagina inicial, healthcheck, autenticacao, `/terminal/`, APIs agregadas do dashboard e endpoints da faucet Signet. |
+| RPC | `core/rpc.py` | Faz parsing de comandos, aplica politicas por rede, timeout/cache, `inspect_tx` e chamadas internas controladas com `bypass_policy`. |
 | WebSocket | `core/consumers.py` | Entrega eventos Bitcoin em tempo real para o navegador. |
 | ASGI | `core/asgi.py` | Roteia HTTP e WebSocket. |
 | Configuracao | `core/settings.py` | Django, Channels, Redis, autenticacao e seguranca. |
@@ -54,6 +55,7 @@ Navegador
   |-- HTTP GET / + /static/*
   |-- HTTP POST /terminal/
   |-- HTTP GET /api/*
+  |-- HTTP POST /api/faucet/dispense/
   |-- WebSocket /ws/btc/
   v
 Django ASGI web-app
@@ -79,16 +81,18 @@ Bitcoin Core mainnet / signet / regtest
 - **Terminal web por rede:** cada rede tem seu proprio terminal, historico, prompt e respostas estruturadas em `rpc.response`.
 - **Interface estilo IDE:** Explorer, Activity Bar, abas, editor `rpc.response`, viewer de docs, terminal e statusbar em uma mesma tela.
 - **Acoes rapidas agrupadas:** botoes para Info, Peers, Mempool, Taxas (6 blk), Endereco, Saldo, Forjar 100, Forjar 1, Ajuda e limpeza do terminal.
+- **Faucet Signet integrada:** botao **Pingar Faucet** solicita `0.01 sBTC` da wallet interna `corecraft_faucet` e mostra saldo disponivel no badge do botao.
 - **Help real do Bitcoin Core:** `help` exibe o retorno completo do node, `help <categoria>` filtra secoes reais e `help <comando>` busca ajuda especifica.
 - **Dashboard operacional protegido:** mostra Node Sync & Divergence, Mempool Intelligence e Event Activity com polling controlado, trava de concorrencia e backoff.
 - **APIs agregadas para metricas:** `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/`, `/api/events/latest/` e `/api/events/state-comparison/` reduzem logica pesada no navegador.
 - **Mempool Intelligence:** mostra volume, fee media e classificacao Low/Medium/High; a toolbar tambem oferece `estimatesmartfee 6`.
 - **Docs integrados:** menu lateral e aba central para abrir guias de arquitetura, comandos, fluxos e operacao.
 - **Timeline em tempo real:** exibe blocos e transacoes recebidos via ZMQ/WebSocket, com valores BTC aproximados e tamanhos quando a desserializacao permite.
-- **Politicas por rede:** mainnet e signet sao tratadas como redes publicas e usam allowlist de metodos; regtest permite mais liberdade, com blocklist para comandos perigosos.
+- **Politicas por rede:** mainnet usa allowlist somente leitura; signet adiciona metodos de wallet para a faucet controlada; regtest permite mais liberdade, com blocklist para comandos perigosos.
 - **Autenticacao simples:** o token `APP_AUTH_TOKEN` libera uma sessao via cookie `HttpOnly` quando `REQUIRE_AUTH=True`.
 - **Preferencias persistentes:** tema, fonte, statusbar, modo compacto, terminal fixo e exibicao da mainnet ficam em `localStorage`.
-- **Frontend modular:** o painel usa cinco ES modules (`main`, `state`, `ui`, `terminal`, `api`) e componentes Django menores, reduzindo o risco de mudancas acidentais em arquivos monoliticos.
+- **Frontend modular:** o painel usa cinco ES modules (`main`, `state`, `ui`, `terminal`, `api`), vendors locais do xterm.js e componentes Django menores, reduzindo o risco de mudancas acidentais em arquivos monoliticos.
+- **Qualidade no build:** o Dockerfile roda ESLint no JavaScript do painel e Ruff no codigo Python antes de entregar a imagem final.
 - **Configuracao segura:** segredos reais ficam em `.env` e `bitcoin.conf`, ambos ignorados pelo Git.
 - **Codigo documentado:** os principais exports JavaScript e funcoes Python receberam docstrings/JSDoc para facilitar manutencao.
 
@@ -102,7 +106,7 @@ Uma boa apresentacao pode seguir esta ordem:
 4. **Interface:** o painel adota visual de IDE para organizar redes, documentacao, terminal, respostas RPC, metricas e timeline sem depender de varias janelas.
 5. **Inteligencia operacional:** o dashboard compara headers/blocos, RPC/ZMQ, mempool e taxa de eventos em uma unica leitura.
 6. **Seguranca:** redes publicas recebem restricoes; regtest e o ambiente de laboratorio para comandos de escrita.
-7. **Demonstracao:** abrir docs, consultar help real, usar `inspect_tx`, criar/carregar wallet regtest, gerar endereco, forjar 1/100 blocos, observar saldo e timeline.
+7. **Demonstracao:** abrir docs, consultar help real, usar `inspect_tx`, criar/carregar wallet regtest, forjar 1/100 blocos, pingar a faucet Signet, observar saldo, dashboard e timeline.
 8. **Proximos passos:** evoluir autenticacao por usuario, auditoria de comandos, testes automatizados e observabilidade.
 
 ## Roteiro de Demo em 5 Minutos
@@ -127,14 +131,15 @@ Uma boa apresentacao pode seguir esta ordem:
 10. Mostrar a timeline recebendo o evento de bloco via ZMQ/WebSocket.
 11. Abrir a aba `docs` pela Activity Bar ou pelo Explorer e mostrar os cards de Arquitetura, Comandos, Fluxos e Operacao.
 12. Abrir Ajustes e demonstrar preset, fonte, cores, rodape, modo compacto, terminal fixo e ocultar/mostrar mainnet.
-13. Alternar para `SIGNET` ou `MAINNET` e executar um comando somente leitura, como:
+13. Alternar para `SIGNET`, mostrar o botao **Pingar Faucet** e explicar que ele usa a wallet interna `corecraft_faucet` com envio fixo de `0.01 sBTC`.
+14. Alternar para `MAINNET` e executar um comando somente leitura, como:
 
    ```text
    getblockchaininfo
    getmempoolinfo
    ```
 
-14. Explicar que comandos fora da allowlist sao bloqueados em redes publicas.
+15. Explicar que comandos fora da allowlist sao bloqueados em redes publicas.
 
 ## Funcoes Visiveis Para o Usuario
 
@@ -153,6 +158,7 @@ Uma boa apresentacao pode seguir esta ordem:
 | `Taxas (6 blk)` | Toolbar | Executa `estimatesmartfee 6` na rede ativa. |
 | `Endereco` | Toolbar em regtest | Carrega/cria a wallet `corecraft` e executa `getnewaddress`. |
 | `Saldo` | Toolbar em regtest | Carrega/cria a wallet `corecraft` e executa `getbalance`. |
+| `Pingar Faucet` | Toolbar em signet | Solicita `0.01 sBTC` da wallet interna `corecraft_faucet` e exibe saldo disponivel no badge. |
 | `Help` | Terminal | Mostra o help completo real do Bitcoin Core; tambem aceita `help <categoria>` e `help <comando>`. |
 | `Forjar 100` | Toolbar em regtest | Gera endereco e executa `generatetoaddress 100 <endereco>` para maturar recompensas anteriores. |
 | `Forjar 1` | Toolbar em regtest | Gera endereco e executa `generatetoaddress 1 <endereco>`. |
@@ -167,7 +173,8 @@ Uma boa apresentacao pode seguir esta ordem:
 
 - A autenticacao e baseada em token compartilhado, nao em usuarios individuais.
 - A interface foi pensada para laboratorio local, nao para exposicao publica.
-- O xterm.js e carregado por CDN, entao a tela depende de acesso ao CDN no navegador.
+- A faucet Signet depende da wallet local `corecraft_faucet` existir, estar carregavel e ter saldo.
+- Os assets do xterm.js sao versionados em `static/*/vendor/`; para atualizar a versao, rode o script de download e valide o build.
 - Mainnet pode demorar para sincronizar e consumir recursos mesmo com `prune`.
 - A timeline mostra eventos recebidos enquanto a interface esta aberta; nao e um historico persistente.
 - O viewer de Docs exibe resumos operacionais no painel; os documentos completos continuam no diretorio `docs/`.

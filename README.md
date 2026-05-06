@@ -1,6 +1,6 @@
 # coreCraft Multi-Node
 
-Interface web para operar e monitorar nodes Bitcoin Core em `mainnet`, `signet` e `regtest`. O projeto combina Django, Django Channels, Redis, WebSocket, ZMQ e xterm.js para oferecer terminais RPC por rede, acoes rapidas, dashboard de sincronizacao/mempool/eventos e feed de blocos/transacoes em tempo real.
+Interface web para operar e monitorar nodes Bitcoin Core em `mainnet`, `signet` e `regtest`. O projeto combina Django, Django Channels, Redis, WebSocket, ZMQ e xterm.js para oferecer terminais RPC por rede, acoes rapidas, faucet controlada em Signet, dashboard de sincronizacao/mempool/eventos e feed de blocos/transacoes em tempo real.
 
 ## Visao Geral
 
@@ -18,8 +18,8 @@ Fluxos principais:
 1. O usuario acessa `http://localhost:8005`.
 2. O Django entrega `templates/index.html`, componentes em `templates/components/` e assets modularizados em `static/css/` e `static/js/panel/`.
 3. O terminal web envia comandos para `POST /terminal/`.
-4. A view Django converte a linha em chamada JSON-RPC para a rede selecionada.
-5. O dashboard consulta endpoints agregados em `/api/*` para sync/lag, mempool e atividade ZMQ.
+4. A view Django converte a linha em chamada JSON-RPC para a rede selecionada e aplica as politicas por rede.
+5. O dashboard consulta endpoints agregados em `/api/*` para sync/lag, mempool, atividade ZMQ e saldo da faucet Signet quando aplicavel.
 6. O listener ZMQ recebe `rawtx`, `rawblock` e `hashblock`.
 7. O listener publica eventos no grupo `btc_events` via Redis/Channels e grava resumos recentes em Redis.
 8. O WebSocket `/ws/btc/` entrega os eventos ao navegador.
@@ -32,7 +32,12 @@ Fluxos principais:
 ├── bitcoin.conf.example      # Template seguro de configuracao Bitcoin Core
 ├── docker-compose.yaml       # Orquestracao de nodes Bitcoin, Redis, Django e ZMQ
 ├── Dockerfile                # Imagem Python da aplicacao
+├── package.json              # Dependencia de lint JavaScript usada no build
+├── pyproject.toml            # Configuracao do Ruff para lint Python
 ├── requirements.txt          # Dependencias Python pinadas
+├── scripts/
+│   ├── download_vendors.py   # Baixa xterm.js/xterm-addon-fit para assets locais
+│   └── sync_rpcauth.py       # Sincroniza rpcauth a partir do .env local
 ├── manage.py                 # CLI administrativa do Django
 ├── core/
 │   ├── asgi.py               # Entrada ASGI: HTTP + WebSocket
@@ -50,9 +55,11 @@ Fluxos principais:
 ├── static/
 │   ├── css/
 │   │   ├── panel.css         # Agregador de CSS do painel
-│   │   └── panel/            # Base, shell, sidebars, terminal, docs, timeline e responsivo
+│   │   ├── panel/            # Base, shell, sidebars, terminal, docs, timeline e responsivo
+│   │   └── vendor/           # CSS local do xterm.js
 │   └── js/
-│       └── panel/            # Estado, UI, API, terminal e bootstrap do painel
+│       ├── panel/            # Estado, UI, API, terminal e bootstrap do painel
+│       └── vendor/           # JS local do xterm.js e FitAddon
 └── docs/                     # Documentacao tecnica detalhada
 ```
 
@@ -60,9 +67,10 @@ Fluxos principais:
 
 - Docker e Docker Compose.
 - Python 3.11 no container.
-- Pacotes Python instalados no `Dockerfile`: `django`, `requests`, `pyzmq`, `channels`, `channels-redis`, `daphne`, `redis`, `python-bitcoinlib` e `python-dotenv`.
+- Pacotes Python instalados no `Dockerfile`: `django`, `requests`, `pyzmq`, `channels`, `channels-redis`, `daphne`, `redis`, `python-bitcoinlib`, `python-dotenv` e `ruff`.
+- Node.js 20 apenas no estagio de lint JavaScript do `Dockerfile`.
 - Imagens Docker: `ruimarinho/bitcoin-core:latest` e `redis:7-alpine`.
-- xterm.js `5.1.0` e `xterm-addon-fit` `0.7.0`, carregados por CDN no navegador.
+- xterm.js `5.1.0` e `xterm-addon-fit` `0.7.0`, servidos localmente em `static/js/vendor/` e `static/css/vendor/`.
 
 ## Como Executar
 
@@ -119,6 +127,7 @@ help
 help blockchain
 help wallet
 getnewaddress
+sendtoaddress <endereco> <valor>
 generatetoaddress 100 <endereco>
 generatetoaddress 1 <endereco>
 getbalance
@@ -126,12 +135,13 @@ getbalance
 
 As acoes rapidas de regtest geram endereco automaticamente com `getnewaddress`: **Forjar 1** executa `generatetoaddress 1 <endereco>` e **Forjar 100** executa `generatetoaddress 100 <endereco>` para acelerar a maturacao de recompensas anteriores.
 
+Em `SIGNET`, o botao **Pingar Faucet** chama `/api/faucet/dispense/` e solicita `0.01 sBTC` da wallet interna `corecraft_faucet`. O dashboard consulta `/api/faucet/balance/` para exibir o saldo disponivel no badge do botao.
+
 ## Documentacao
 
 - [Indice tecnico](docs/README.md)
 - [Guia de apresentacao do projeto](docs/apresentacao.md)
 - [Tutorial da plataforma](docs/tutorial-plataforma.md)
-- [Redesign da interface IDE](docs/redesign-interface-ide.md)
 - [Refatoracao do painel IDE](docs/refatoracao-painel.md)
 - [Relatorio tecnico do estado atual](docs/relatorio-tecnico-estado-atual.md)
 - [Arquitetura](docs/arquitetura.md)
@@ -147,7 +157,8 @@ Este projeto esta configurado para laboratorio local:
 
 - `DEBUG=True`.
 - `/terminal/` e `/ws/btc/` exigem autenticacao quando `REQUIRE_AUTH=True`; o navegador usa cookie `HttpOnly` e clientes externos podem usar `X-CoreCraft-Token`.
-- Mainnet e signet usam allowlist de metodos RPC por padrao.
+- Mainnet usa allowlist somente leitura por padrao; signet adiciona metodos de wallet necessarios para a faucet controlada.
+- A faucet Signet nao aceita valor nem endereco arbitrario do cliente; o backend gera o destino e envia valor fixo.
 - `bitcoin.conf` real e ignorado; versionamos apenas `bitcoin.conf.example`.
 - Use `rpcauth` no `bitcoin.conf` e mantenha senhas reais somente no `.env`.
 - RPC e ZMQ expostos em `0.0.0.0` dentro do ambiente Docker.

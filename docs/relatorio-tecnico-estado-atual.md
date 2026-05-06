@@ -18,15 +18,16 @@ A maior melhoria recente foi a remocao do template monolitico. O painel agora
 usa `templates/components/`, `static/css/panel/` e cinco modulos JavaScript:
 `state.js`, `terminal.js`, `ui.js`, `api.js` e `main.js`. Nos ajustes mais
 novos, o dashboard passou a consumir endpoints agregados `/api/*`, o listener
-ZMQ passou a manter janelas curtas de blocos/transacoes em Redis, e o terminal
-ganhou uma faixa de comandos agrupada por rede, mempool, wallet/mineracao e
-utilitarios.
+ZMQ passou a manter janelas curtas de blocos/transacoes em Redis, o terminal
+ganhou uma faixa de comandos agrupada por rede, mempool, wallet/mineracao/faucet
+e utilitarios, e Signet ganhou uma faucet controlada pela wallet
+`corecraft_faucet`.
 
 Os principais riscos atuais sao:
 
 - nao ha suite automatizada de testes;
 - o Compose usa `manage.py runserver`, adequado para laboratorio, nao producao;
-- xterm.js e FitAddon sao carregados por CDN;
+- xterm.js e FitAddon agora sao servidos por assets locais, mas precisam ser mantidos atualizados;
 - algumas falhas no listener ZMQ e nas APIs agregadas sao silenciadas ou
   devolvidas como payload `{"error": ...}`, dificultando diagnostico;
 - o cache RPC e em memoria, sem limite global de crescimento;
@@ -40,6 +41,7 @@ Os principais riscos atuais sao:
 | Frontend JS | `static/js/panel/*.js` | cerca de 1100 | ES modules separados por estado, terminal, UI, API e bootstrap. |
 | CSS | `static/css/panel*.css` | 2147 | Estilos segmentados por base, shell, sidebars, conteudo, terminal, controles e responsivo. |
 | Templates | `templates/index.html` + `templates/components/*.html` | 294 | Shell principal pequeno e componentes Django menores. |
+| Vendors locais | `static/js/vendor/*` + `static/css/vendor/*` | externo | xterm.js e xterm-addon-fit servidos sem CDN. |
 | Documentacao | `docs/*.md` | extensa | Guias de arquitetura, comandos, configuracao, fluxos, tutorial e refatoracao. |
 
 ## Arquitetura Atual
@@ -56,10 +58,10 @@ Fluxo principal:
 8. O backend grava cookie `HttpOnly`.
 9. O frontend abre WebSocket em `/ws/btc/`.
 10. Comandos RPC sao enviados para `POST /terminal/`.
-11. O dashboard consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/` e `/api/events/state-comparison/`.
+11. O dashboard consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/`, `/api/events/state-comparison/` e, em Signet, `/api/faucet/balance/`.
 12. Eventos ZMQ chegam via `zmq-listener -> Redis/Channels -> BTCEventConsumer -> WebSocket`.
 13. O listener tambem grava `zmq:<rede>:blocks`, `zmq:<rede>:txs` e `zmq:<rede>:last_time` em Redis para os endpoints agregados.
-14. Os botoes rapidos do terminal chamam `executeMacro` ou `mineBlockMacro`; comandos de wallet/mineracao sao ocultados e bloqueados fora de `regtest`.
+14. Os botoes rapidos do terminal chamam `executeMacro` ou `mineBlockMacro`; mineracao fica restrita ao `regtest`, wallet em mainnet e bloqueada, e Signet mostra apenas o fluxo de faucet.
 
 ## Backend Django e ASGI
 
@@ -67,7 +69,7 @@ Fluxo principal:
 
 - Rotas HTTP pequenas e objetivas em `core/urls.py`.
 - `core/views.py` delega parsing, politica e chamada RPC para `core.rpc`, mantendo `/terminal/` simples.
-- `core/views.py` expoe APIs agregadas para sync/lag, mempool e eventos observados.
+- `core/views.py` expoe APIs agregadas para sync/lag, mempool, eventos observados e faucet Signet.
 - `core/auth.py` centraliza token HTTP, cookie, Bearer token, WebSocket scope e Origin.
 - `core/consumers.py` valida token e Origin antes de aceitar o WebSocket.
 - `core/settings.py` usa `.env`, `STATICFILES_DIRS`, Channels/Redis e headers de seguranca basicos.
@@ -84,11 +86,13 @@ Fluxo principal:
 
 Endpoints atuais:
 
-- `GET /api/blockchain/lag/?network=<rede>`: chama `getblockchaininfo` e retorna `blocks`, `headers` e `lag`.
+- `GET /api/blockchain/lag/?network=<rede>`: chama `getblockchaininfo` e retorna `blocks`, `headers`, `lag`, `ibd` e `progress`.
 - `GET /api/mempool/summary/?network=<rede>`: chama `getmempoolinfo`; quando a mempool tem ate 1500 transacoes, chama `getrawmempool true` para calcular fee media e distribuicao low/medium/high.
 - `GET /api/events/summary/?network=<rede>`: le Redis para contar blocos/txs observados e estimar tx/s.
 - `GET /api/events/latest/?network=<rede>`: retorna ate 5 blocos e 10 txs recentes do Redis.
 - `GET /api/events/state-comparison/?network=<rede>`: compara `getbestblockhash` com o ultimo bloco observado via ZMQ.
+- `GET /api/faucet/balance/?network=signet`: consulta saldo da wallet `corecraft_faucet`.
+- `POST /api/faucet/dispense/`: envia `0.01 sBTC` da wallet interna para endereco novo gerado no backend.
 
 ### Pontos Fortes
 
@@ -96,6 +100,7 @@ Endpoints atuais:
 - Permite cards mais ricos sem expor multiplas chamadas RPC diretas no frontend.
 - O endpoint de mempool possui escudo anti-varredura para mempools acima de 1500 transacoes.
 - A comparacao RPC vs ZMQ ajuda a detectar feed atrasado ou divergente.
+- A faucet nao recebe valor nem endereco arbitrario do cliente, reduzindo o escopo operacional.
 
 ### Pontos de Atencao
 
@@ -112,13 +117,15 @@ Responsabilidades atuais:
 
 - parsear comandos com `shlex.split`;
 - converter parametros `true`, `false`, `null`, numeros e JSON inline;
-- aplicar allowlist em `mainnet` e `signet`;
+- aplicar allowlist somente leitura em `mainnet`;
+- aplicar allowlist em `signet`, incluindo metodos de wallet necessarios para a faucet controlada;
 - aplicar blocklist em `regtest`;
 - executar JSON-RPC HTTP com timeout configuravel;
 - cachear metodos read-only selecionados;
 - cachear erros temporarios;
 - coalescer chamadas iguais usando lock por chave;
 - tratar `inspect_tx` localmente com `python-bitcoinlib`.
+- permitir `bypass_policy=True` para endpoints internos controlados.
 
 ### Pontos Fortes
 
@@ -170,7 +177,7 @@ Modulos atuais:
 - `state.js`: constantes, temas, docs, ajuda local e estado da sessao;
 - `terminal.js`: xterm.js, prompt, historico, autocomplete, resize e help;
 - `ui.js`: navegacao, troca de rede, viewer JSON/docs, timeline, toasts e preferencias;
-- `api.js`: auth, WebSocket, eventos ZMQ, RPC, chamadas `/api/*`, polling, wallet regtest e macros;
+- `api.js`: auth, WebSocket, eventos ZMQ, RPC, chamadas `/api/*`, polling, faucet Signet, wallet regtest e macros;
 - `main.js`: listeners DOM, resize handles, preferencias e bootstrap.
 
 ### Pontos Fortes
@@ -179,11 +186,11 @@ Modulos atuais:
 - `xterm-addon-fit` e fallback manual tornam o terminal mais resiliente a resize.
 - Historico e input sao separados por rede.
 - `renderRpcResponse` e `blockCardMarkup` escapam conteudo antes de inserir HTML.
-- Polling pausa quando a aba esta oculta, evita chamadas sobrepostas e consulta quatro endpoints agregados em paralelo.
+- Polling pausa quando a aba esta oculta, evita chamadas sobrepostas e consulta endpoints agregados em paralelo.
 - Preferencias visuais persistem em `localStorage`.
-- Macros de wallet/mineracao sao bloqueadas fora de `regtest`.
+- Mineracao e bloqueada fora de `regtest`; wallet em mainnet tambem e bloqueada.
 - Respostas RPC estruturadas deixam de inundar o terminal e passam a aparecer no painel `rpc.response`.
-- A toolbar atual cobre Info, Peers, Mempool, `estimatesmartfee 6`, Endereco, Saldo, Forjar 100, Forjar 1, Ajuda e Limpar.
+- A toolbar atual cobre Info, Peers, Mempool, `estimatesmartfee 6`, Endereco, Saldo, Pingar Faucet, Forjar 100, Forjar 1, Ajuda e Limpar.
 - `Forjar 100` automatiza wallet/endereco e chama `generatetoaddress 100 <endereco>` para maturar recompensas anteriores em demos regtest.
 
 ### Pontos de Atencao
@@ -192,7 +199,7 @@ Modulos atuais:
 - Ainda existem handlers `onclick` no HTML para compatibilidade. Funciona, mas mistura contrato de template e JS global.
 - `terminal.html` usa alguns estilos inline nos botoes/grupos; funciona, mas dificulta padronizacao visual futura.
 - O cache bust de assets usa `?v=20260504` manual; esquecimentos podem causar navegador servindo JS/CSS antigo.
-- Nao ha build step, lint, formatacao automatica ou teste de sintaxe JS no repositorio.
+- O Dockerfile ja roda ESLint para `static/js/panel/` e Ruff para Python; ainda faltam testes automatizados.
 - `legacyStoredToken` ainda le `corecraft.authToken` para compatibilidade e remove depois; isso e bom para migracao, mas pode ser removido futuramente.
 
 ## Templates e CSS
@@ -202,7 +209,7 @@ Modulos atuais:
 - `templates/index.html` virou shell pequeno.
 - Componentes foram separados em `header`, `sidebar_left`, `sidebar_right`, `metrics`, `json_viewer`, `terminal`, `login_overlay` e `icons`.
 - CSS foi dividido em dez arquivos importados por `static/css/panel.css`.
-- `terminal.html` organiza comandos rapidos por grupos: rede, mempool, wallet/mineracao e utilitarios.
+- `terminal.html` organiza comandos rapidos por grupos: rede, mempool, wallet/mineracao/faucet e utilitarios.
 - `metrics.html` mostra tres cards orientados a operacao: Node Sync & Divergence, Mempool Intelligence e Event Activity.
 
 ### Pontos Fortes
@@ -215,7 +222,7 @@ Modulos atuais:
 ### Pontos de Atencao
 
 - `sidebar_left.html` ainda e grande, porque concentra Explorer, Busca, Docs, Fluxos, Execucao e Ajustes.
-- Alguns textos do viewer de Docs dizem que os cards serao conectados depois aos arquivos reais; hoje eles sao resumos internos, nao carregam Markdown do diretorio `docs/`.
+- O viewer de Docs ainda exibe resumos internos; ele nao carrega Markdown diretamente do diretorio `docs/`.
 - Icones SVG sao inline e funcionam bem, mas nao ha sistema externo de icones; manter consistencia depende de disciplina manual.
 
 ## Docker, Configuracao e Operacao
@@ -230,10 +237,12 @@ Servicos principais:
 ### Pontos Fortes
 
 - `.env.example` documenta variaveis essenciais de auth, RPC, Redis, allowlists, blocklist e topicos ZMQ.
-- `bitcoin.conf.example` usa `rpcauth`, `prune` em redes publicas, wallet desabilitada em mainnet/signet e ZMQ segmentado.
+- `bitcoin.conf.example` usa `rpcauth`, `prune` em redes publicas e ZMQ segmentado; Signet precisa de wallet habilitada se a faucet local for usada.
 - Healthchecks existem para Bitcoin Core, Redis, web-app e listener.
 - `scripts/sync_rpcauth.py` ajuda a manter `.env` e `bitcoin.conf` alinhados sem imprimir segredos.
+- `scripts/download_vendors.py` ajuda a atualizar os vendors locais de xterm/FitAddon.
 - `requirements.txt` declara `redis`, pois views e listener importam esse pacote diretamente.
+- `requirements.txt`, `pyproject.toml` e `package.json` cobrem lint Python/JS no build.
 
 ### Pontos de Atencao
 
@@ -262,7 +271,7 @@ Riscos restantes:
 - sem CSRF nativo do Django;
 - token compartilhado pode ser vazado e libera todo o painel;
 - sem rate limit por IP/token;
-- frontend depende de CDN externo;
+- assets de terminal sao locais, mas precisam de rotina de atualizacao e validacao;
 - comandos RPC permitidos em redes publicas devem ser revisados antes de qualquer uso sensivel.
 
 ## Qualidade, Testes e Manutenibilidade
@@ -276,7 +285,7 @@ Recomendado adicionar:
 - testes para `auth.py`, especialmente cookie/header/Bearer e Origin;
 - testes do `sync_rpcauth.py`;
 - smoke test HTTP de `/health/`, `/auth/verify/` e `/terminal/`;
-- teste de sintaxe/lint para JS;
+- testes para endpoints da faucet Signet e para `bypass_policy`;
 - um checklist visual com Playwright quando o ambiente tiver Node disponível.
 
 ## Achados Priorizados
@@ -290,7 +299,7 @@ Recomendado adicionar:
 | Media | Listener ZMQ silencia excecoes | Diagnostico de eventos perdidos fica dificil | Logar falhas com rate limit ou nivel debug/warning. |
 | Media | Cache RPC sem limite global | Crescimento de memoria em uso adversarial | Adicionar limite LRU ou limpeza periodica. |
 | Media | Redis e consultado por chave derivada de `network` sem validacao explicita | Chaves arbitrarias podem ser consultadas | Validar rede contra conjunto permitido antes de acessar Redis. |
-| Media | Assets de xterm via CDN | Interface falha offline ou se CDN estiver bloqueado | Servir xterm e FitAddon localmente. |
+| Media | Faucet Signet depende de wallet local com saldo | Demo pode falhar sem preparo previo | Documentar bootstrap da wallet e checar saldo antes da demo. |
 | Baixa | Estilos inline em `terminal.html` | Padronizacao visual pode ficar espalhada | Mover regras para `static/css/panel/40-terminal.css`. |
 | Baixa | Cache bust manual `?v=20260504` | Navegador pode ficar com assets antigos | Automatizar versao por build/env. |
 | Baixa | `sidebar_left.html` concentra muitos paineis | Arquivo pode crescer novamente | Separar paineis laterais em componentes menores se continuar evoluindo. |
@@ -302,22 +311,26 @@ Recomendado adicionar:
 3. Normalizar erros das APIs agregadas e usar status HTTP apropriado.
 4. Validar `network` explicitamente antes de acessar Redis.
 5. Adicionar logs controlados no listener ZMQ.
-6. Servir xterm.js e xterm-addon-fit localmente.
-7. Automatizar versionamento de assets estaticos.
-8. Fixar versao da imagem Bitcoin Core em vez de usar `latest`.
-9. Adicionar rate limit simples para `/auth/verify/`, `/terminal/` e `/api/*`.
-10. Criar auditoria local de comandos RPC executados.
-11. Separar `sidebar_left.html` se novos paineis forem adicionados.
-12. Substituir `runserver` por servidor ASGI adequado quando sair de laboratorio.
+6. Automatizar versionamento de assets estaticos.
+7. Fixar versao da imagem Bitcoin Core em vez de usar `latest`.
+8. Adicionar rate limit simples para `/auth/verify/`, `/terminal/` e `/api/*`.
+9. Criar auditoria local de comandos RPC executados.
+10. Separar `sidebar_left.html` se novos paineis forem adicionados.
+11. Substituir `runserver` por servidor ASGI adequado quando sair de laboratorio.
 
 ## Validacao Executada Nesta Revisao
 
 Comandos executados no ambiente local:
 
 ```bash
-PYTHONPYCACHEPREFIX=/tmp/corecraft-pycache python3 -m compileall core
+PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py
 git diff --check
+docker compose config
 ```
+
+`ruff` e `npx eslint` estao configurados no Dockerfile, mas nao foram executados
+diretamente no host desta revisao porque `ruff`, `node` e `npx` nao estavam
+instalados no ambiente local.
 
 Resultado:
 

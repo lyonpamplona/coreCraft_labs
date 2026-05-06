@@ -24,8 +24,8 @@ export const CONSTANTS = {
     panelNames: { explorer: 'Redes', docs: 'Docs', search: 'Busca', flows: 'Fluxos', run: 'Execucao', settings: 'Ajustes' },
     docTopics: {
         arquitetura: { title: 'Arquitetura', description: 'Camada Django/ASGI entrega a interface, o endpoint /terminal/ executa RPC por rede, e o WebSocket recebe eventos ZMQ enriquecidos para atualizar terminal e timeline.' },
-        comandos: { title: 'Comandos', description: 'Os comandos rapidos chamam getblockchaininfo, getpeerinfo, getmempoolinfo, estimatesmartfee 6, getnewaddress, getbalance e mineracao regtest. Mainnet e signet continuam protegidas por allowlist.' },
-        fluxos: { title: 'Fluxos', description: 'Fluxos esperados: escolher rede, consultar estado, carregar wallet regtest, gerar endereco, minerar bloco e observar o evento aparecer no terminal e na timeline.' },
+        comandos: { title: 'Comandos', description: 'Os comandos rapidos chamam getblockchaininfo, getpeerinfo, getmempoolinfo, estimatesmartfee 6, wallet regtest, faucet Signet e mineracao regtest. Mainnet continua protegida por allowlist somente leitura.' },
+        fluxos: { title: 'Fluxos', description: 'Fluxos esperados: escolher rede, consultar estado, carregar wallet regtest, minerar bloco, pingar a faucet Signet e observar eventos no terminal e na timeline.' },
         operacao: { title: 'Operacao', description: 'Checklist operacional: validar token, confirmar credenciais RPC no .env, subir os servicos Docker, observar logs e limpar o terminal quando a sessao ficar extensa.' }
     },
     themePresets: {

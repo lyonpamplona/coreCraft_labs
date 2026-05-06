@@ -1,9 +1,8 @@
 """Rotas HTTP da aplicacao Django.
 
-As URLs sao intencionalmente enxutas: a raiz entrega a interface de terminal e
-``/terminal/`` recebe comandos digitados pelo usuario para encaminhamento ao
-Bitcoin Core. Os endpoints ``/api/*`` alimentam os cards agregados do
-dashboard. As rotas WebSocket ficam declaradas em ``core.asgi``.
+A raiz entrega a interface de terminal, ``/terminal/`` encaminha comandos RPC e
+``/api/*`` alimenta cards de dashboard, eventos e faucet Signet. As rotas
+WebSocket ficam declaradas em ``core.asgi``.
 """
 
 from django.urls import path
@@ -20,4 +19,6 @@ urlpatterns = [
     path('api/events/summary/', views.events_summary, name='events_summary'),
     path('api/events/latest/', views.events_latest, name='events_latest'),
     path('api/events/state-comparison/', views.events_state_comparison, name='events_state_comparison'),
+    path('api/faucet/dispense/', views.faucet_dispense, name='faucet_dispense'),
+    path('api/faucet/balance/', views.faucet_balance, name='faucet_balance'),
 ]

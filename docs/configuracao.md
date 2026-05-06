@@ -7,6 +7,7 @@
 - Espaco em disco para volumes dos nodes Bitcoin.
 - `.env` com endpoints/credenciais RPC.
 - `bitcoin.conf` local criado a partir de `bitcoin.conf.example`.
+- Assets locais do xterm.js presentes em `static/js/vendor/` e `static/css/vendor/`.
 
 ## Servicos
 
@@ -90,6 +91,12 @@ menores evitam que o painel acumule requisicoes longas.
 `RPC_ERROR_CACHE_SECONDS` cacheia erros temporarios, como timeout, por mais
 tempo para impedir loops de polling contra nodes ainda ocupados.
 
+`MAINNET_RPC_ALLOWLIST` deve permanecer focada em metodos somente leitura.
+`SIGNET_RPC_ALLOWLIST` parte da mesma base, mas o codigo inclui metodos de
+wallet necessarios para a faucet controlada (`listwallets`, `loadwallet`,
+`getwalletinfo`, `getnewaddress`, `getbalance`, `sendtoaddress` e
+`createwallet`) quando a variavel nao sobrescreve a lista.
+
 Quando `REQUIRE_AUTH=True`, a interface solicita `APP_AUTH_TOKEN` no navegador. A verificacao inicial usa o header `X-CoreCraft-Token`; depois o backend grava um cookie `HttpOnly` chamado `APP_AUTH_COOKIE_NAME` para liberar `/terminal/` e `/ws/btc/` sem expor o token em `localStorage` ou na URL do WebSocket.
 
 Clientes externos ainda podem chamar a API HTTP usando `X-CoreCraft-Token` ou `Authorization: Bearer <token>`.
@@ -126,7 +133,7 @@ Para gerar novos valores, use o script `rpcauth.py` do Bitcoin Core ou um gerado
 Perfil pruned recomendado neste projeto:
 
 - mainnet: `prune=550`, `disablewallet=1`, mempool limitada e apenas eventos ZMQ de bloco;
-- signet: `prune=550`, `disablewallet=1`, mempool menor e apenas eventos ZMQ de bloco;
+- signet: `prune=550`, wallet habilitada se a faucet `corecraft_faucet` for usada, mempool menor e apenas eventos ZMQ de bloco;
 - regtest: sem prune, com `txindex=1`, wallet habilitada e `rawtx` ativo para testes locais.
 
 ## Logs
@@ -145,6 +152,8 @@ docker compose logs -f redis
 ```bash
 docker compose config
 PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py
+ruff check core/ manage.py
+npx eslint static/js/panel/
 ```
 
 ## Troubleshooting
@@ -192,3 +201,16 @@ Isso geralmente indica divergencia entre o `rpcauth` do `bitcoin.conf` e usuario
 ### Mainnet demora para ficar util
 
 Mesmo com `prune`, a sincronizacao inicial pode ser longa e consumir disco/rede. Use signet/regtest para testes rapidos.
+
+### Faucet Signet retorna wallet nao encontrada
+
+Crie ou carregue a wallet esperada no node Signet:
+
+```text
+createwallet corecraft_faucet
+loadwallet corecraft_faucet
+```
+
+Depois envie fundos de teste para essa wallet por uma faucet externa ou outro
+fluxo Signet. O botao **Pingar Faucet** so distribui `0.01 sBTC` se a wallet
+tiver saldo suficiente.

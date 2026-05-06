@@ -60,12 +60,13 @@ sequenceDiagram
 
 O frontend roda `fetchNodeStatus()` com intervalo controlado de 15 segundos:
 
-1. chama `/api/blockchain/lag/` para atualizar blocos, headers/lag e estado de sincronizacao;
+1. chama `/api/blockchain/lag/` para atualizar blocos, headers/lag, IBD e progresso de verificacao;
 2. chama `/api/mempool/summary/` para calcular total de transacoes, fee media em sat/vB e distribuicao low/medium/high;
 3. chama `/api/events/summary/` para mostrar tx/s, txs vistas e blocos vistos pelo listener ZMQ;
 4. chama `/api/events/state-comparison/` para indicar divergencia entre `getbestblockhash` e ultimo bloco ZMQ registrado;
-5. evita chamadas sobrepostas com uma trava de concorrencia;
-6. aplica backoff temporario quando uma API agregada falha.
+5. em `signet`, chama `/api/faucet/balance/` para atualizar o badge da faucet;
+6. evita chamadas sobrepostas com uma trava de concorrencia;
+7. aplica backoff temporario quando uma API agregada falha.
 
 No backend, `core.views` combina chamadas RPC e leituras Redis para montar os
 resumos. `core.rpc` continua cacheando chamadas read-only repetidas e erros
@@ -154,3 +155,28 @@ Disponivel apenas para `regtest`:
 2. executa `generatetoaddress 1 <endereco>`;
 3. aguarda evento ZMQ;
 4. atualiza terminal e timeline.
+
+## 8. Faucet Signet
+
+Disponivel apenas quando a rede ativa e `signet`:
+
+```mermaid
+sequenceDiagram
+    participant UI as Botao Pingar Faucet
+    participant View as faucet_dispense
+    participant RPC as core.rpc
+    participant Sig as btc-signet
+
+    UI->>View: POST /api/faucet/dispense/ {network: signet}
+    View->>View: valida token e fixa amount = 0.01
+    View->>RPC: loadwallet corecraft_faucet (bypass_policy)
+    RPC->>Sig: JSON-RPC
+    View->>RPC: getbalance (bypass_policy)
+    View->>RPC: getnewaddress (bypass_policy)
+    View->>RPC: sendtoaddress address 0.01 (bypass_policy)
+    View-->>UI: txid, amount, address
+```
+
+A API nao recebe valor nem endereco arbitrario do navegador. O backend gera o
+destino, usa valor fixo e retorna erro se a wallet `corecraft_faucet` nao
+existir ou nao tiver saldo suficiente.

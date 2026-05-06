@@ -44,6 +44,7 @@ redis-data/
 tmp/
 temp/
 
+
 auditoria.md
 roadmap.md
 roadmap-layout-painel.md
@@ -59,3 +60,4 @@ Thumbs.db
 
 # Artefatos locais do Codex
 .codex
+.agents/

@@ -35,7 +35,9 @@ Resumo de sincronizacao:
 {
   "blocks": 100,
   "headers": 100,
-  "lag": 0
+  "lag": 0,
+  "ibd": false,
+  "progress": 0.999999
 }
 ```
 
@@ -79,6 +81,39 @@ Retorna os blocos e txs mais recentes persistidos em Redis.
 Compara `getbestblockhash` com o ultimo bloco observado via ZMQ/Redis e indica
 divergencia entre estado RPC e feed de eventos.
 
+### `GET /api/faucet/balance/?network=signet`
+
+Consulta saldo da wallet interna `corecraft_faucet`:
+
+```json
+{
+  "balance": 0.42
+}
+```
+
+### `POST /api/faucet/dispense/`
+
+Solicita `0.01 sBTC` da wallet interna Signet. A API nao aceita valor nem
+endereco arbitrario do navegador; o backend gera o destino.
+
+Entrada:
+
+```json
+{
+  "network": "signet"
+}
+```
+
+Saida:
+
+```json
+{
+  "txid": "<txid>",
+  "amount": 0.01,
+  "address": "<endereco-gerado>"
+}
+```
+
 ### `POST /auth/logout/`
 
 Remove o cookie de autenticacao do painel e permite reiniciar o login no navegador.
@@ -108,6 +143,7 @@ Entrega eventos publicados pelo listener:
 - delega parsing, politica e chamada RPC para `core.rpc`;
 - expoe APIs agregadas para dashboard de sync/lag, mempool e eventos;
 - consulta Redis para blocos/txs recentes observados pelo listener ZMQ;
+- expoe endpoints de faucet Signet para saldo e envio fixo controlado;
 - retorna JSON ao frontend.
 
 `core/auth.py`:
@@ -122,8 +158,10 @@ Entrega eventos publicados pelo listener:
 
 - usa `shlex.split` para argumentos com aspas;
 - converte booleanos, `null`, numeros e JSON inline;
-- aplica allowlist em mainnet/signet;
+- aplica allowlist somente leitura em mainnet;
+- aplica allowlist em signet com metodos de wallet usados pela faucet;
 - aplica blocklist em regtest;
+- permite `bypass_policy=True` para fluxos internos do backend, sem liberar esses metodos ao terminal;
 - executa JSON-RPC com timeout configuravel e erros normalizados;
 - cacheia consultas read-only repetidas por `RPC_CACHE_SECONDS`;
 - cacheia erros temporarios por `RPC_ERROR_CACHE_SECONDS`;
@@ -167,7 +205,7 @@ Entrega eventos publicados pelo listener:
 - concentra constantes e estado em `state.js`;
 - concentra navegacao, preferencias e renderizacao segura em `ui.js`;
 - concentra xterm, historico, autocomplete e `help` em `terminal.js`;
-- concentra WebSocket, RPC, chamadas `/api/*`, dashboard, wallet regtest, `verifyToken` e macros **Forjar 1**/**Forjar 100** em `api.js`;
+- concentra WebSocket, RPC, chamadas `/api/*`, dashboard, faucet Signet, wallet regtest, `verifyToken` e macros **Forjar 1**/**Forjar 100** em `api.js`;
 - cria uma instancia de terminal por rede;
 - mantem entrada e historico por rede;
 - alterna a view central entre terminal e documentacao;
@@ -176,8 +214,9 @@ Entrega eventos publicados pelo listener:
 - permite redimensionar paines laterais em telas desktop;
 - renderiza `rpc.response` com o ultimo retorno RPC executado;
 - envia respostas RPC estruturadas para `rpc.response` e deixa o terminal com mensagens curtas de sucesso;
-- agrupa botoes rapidos em rede, mempool, wallet/mineracao e utilitarios;
+- agrupa botoes rapidos em rede, mempool, wallet/mineracao/faucet e utilitarios;
 - oferece `estimatesmartfee 6` no botao **Taxas (6 blk)**;
+- oferece **Pingar Faucet** em Signet para solicitar `0.01 sBTC` da wallet interna;
 - usa o `help` real do Bitcoin Core e filtra secoes completas para `help <categoria>`;
 - usa ajuda local apenas como contingencia quando o RPC nao retorna a secao pedida;
 - recalcula o tamanho do xterm com `xterm-addon-fit` depois de resize, troca de rede, troca de fonte e mudanca de aba;
@@ -185,7 +224,7 @@ Entrega eventos publicados pelo listener:
 - usa cookie `HttpOnly` apos o login;
 - abre WebSocket com `ws://` ou `wss://` sem token na URL;
 - sanitiza dados exibidos no viewer JSON e nos cards da timeline;
-- restringe macros de wallet/mineracao ao `regtest`;
+- restringe mineracao ao `regtest` e comandos de wallet em mainnet;
 - atualiza dashboard com polling de 15 segundos, endpoints agregados, trava de concorrencia e backoff por rede;
 - renderiza cards de Node Sync & Divergence, Mempool Intelligence e Event Activity;
 - renderiza timeline visual de blocos com status, hash/resumo, tx, peso e taxas;
@@ -193,7 +232,4 @@ Entrega eventos publicados pelo listener:
 
 ## Melhorias Planejadas
 
-Detalhes completos:
-
-- [Relatorio de auditoria](auditoria.md)
-- [Roadmap de melhorias](roadmap.md)
+Detalhes e riscos atuais estao consolidados em [Relatorio tecnico do estado atual](relatorio-tecnico-estado-atual.md).

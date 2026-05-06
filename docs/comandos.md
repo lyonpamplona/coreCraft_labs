@@ -45,6 +45,8 @@ docker compose logs -f redis
 ```bash
 docker compose config
 PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py
+ruff check core/ manage.py
+npx eslint static/js/panel/
 ```
 
 ## Terminal Web
@@ -134,6 +136,33 @@ Ver saldo:
 getbalance
 ```
 
+## Signet
+
+Comandos de leitura recomendados:
+
+```text
+getblockchaininfo
+getblockcount
+getbestblockhash
+getmempoolinfo
+getnetworkinfo
+getpeerinfo
+help network
+```
+
+O botao **Pingar Faucet** chama a API interna e solicita `0.01 sBTC` da wallet
+`corecraft_faucet`. Para preparar a wallet no node Signet:
+
+```text
+createwallet corecraft_faucet
+loadwallet corecraft_faucet
+getnewaddress
+```
+
+Depois envie fundos Signet de teste para a wallet. O backend nao aceita valor
+nem endereco arbitrario do navegador; ele gera o destino e envia sempre o valor
+fixo definido na view.
+
 ## bitcoin-cli
 
 Executar comandos no container regtest:
@@ -192,6 +221,14 @@ curl "http://localhost:8005/api/events/latest/?network=regtest" \
 
 curl "http://localhost:8005/api/events/state-comparison/?network=regtest" \
   -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl "http://localhost:8005/api/faucet/balance/?network=signet" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl -X POST http://localhost:8005/api/faucet/dispense/ \
+  -H "Content-Type: application/json" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>" \
+  --data '{"network":"signet"}'
 ```
 
 Limpar a sessao autenticada do navegador:

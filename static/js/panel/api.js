@@ -2,7 +2,7 @@ import { state, CONSTANTS } from './state.js';
 import { showToast, showLogin, hideLogin, setConnectionStatus, setRpcStatus, renderRpcResponse, updateDashboardValue, blockCardMarkup, switchNet } from './ui.js';
 import { writePrompt, scrollTerminalToBottom, buildLocalHelpOutput, formatHelpOutput, extractHelpCategoryOutput, focusTerminal } from './terminal.js';
 
-/** Monta headers JSON; o navegador autenticado usa cookie HttpOnly. */
+/** Monta headers JSON; apos login o navegador usa cookie HttpOnly. */
 export function authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     if (state.authToken) headers['X-CoreCraft-Token'] = state.authToken;
@@ -107,7 +107,7 @@ export function isRpcTimeout(payload) {
     return String(message).toLowerCase().includes('timeout');
 }
 
-/** Envia comando para `/terminal/` e envia objetos grandes ao viewer JSON. */
+/** Envia comando para `/terminal/` e direciona objetos grandes ao viewer JSON. */
 export async function processCommand(net, cmd, silent = false) {
     const t = state.terminals[net];
     const parts = cmd.toLowerCase().split(' ');
@@ -153,7 +153,6 @@ export async function processCommand(net, cmd, silent = false) {
                     d.result = output; d.local = usedLocalHelp; d.category = helpCategory;
                     if (rpcStatus) rpcStatus.innerText = `Ajuda ${helpCategory}`;
                 }
-
                 if (typeof output === 'string' && output.includes('==')) {
                     formatHelpOutput(t, output);
                 } else if (output !== null && typeof output === 'object') {
@@ -162,7 +161,6 @@ export async function processCommand(net, cmd, silent = false) {
                     t.writeln(`\x1b[38;5;250m${output}\x1b[0m`);
                 }
             }
-
             t.write('\r\n'); writePrompt(t, net);
             if (parts[0] !== 'help' && parts[0] !== 'clear') { renderRpcResponse(net, cmd, d); }
             focusTerminal(net);
@@ -188,12 +186,21 @@ export async function fetchNodeStatus(options = {}) {
     try {
         setRpcStatus(`API ${net} consultando`);
         const headers = authHeaders();
-        const [lagRes, mempoolRes, evSummaryRes, evCompRes] = await Promise.all([
+        const promises = [
             fetch(`/api/blockchain/lag/?network=${net}`, { headers }),
             fetch(`/api/mempool/summary/?network=${net}`, { headers }),
             fetch(`/api/events/summary/?network=${net}`, { headers }),
             fetch(`/api/events/state-comparison/?network=${net}`, { headers })
-        ]);
+        ];
+        if (net === 'signet') {
+            promises.push(fetch(`/api/faucet/balance/?network=${net}`, { headers }));
+        }
+        const results = await Promise.all(promises);
+        const lagRes = results[0];
+        const mempoolRes = results[1];
+        const evSummaryRes = results[2];
+        const evCompRes = results[3];
+        const faucetRes = results[4];
 
         if (lagRes.ok) {
             const lagData = await lagRes.json();
@@ -203,7 +210,12 @@ export async function fetchNodeStatus(options = {}) {
                 const lagVal = document.getElementById('v-lag');
                 if (lagVal) { lagVal.innerText = '-'; lagVal.style.color = 'var(--text-muted)'; }
             } else {
-                updateDashboardValue('v-blocks', lagData.blocks ?? 0);
+                if (lagData.ibd) {
+                    const percent = (lagData.progress * 100).toFixed(2);
+                    updateDashboardValue('v-blocks', `SYNC: ${percent}%`);
+                } else {
+                    updateDashboardValue('v-blocks', lagData.blocks ?? 0);
+                }
                 updateDashboardValue('rpc-blocks-label', lagData.blocks ?? 0);
                 const lagVal = document.getElementById('v-lag');
                 if (lagVal) {
@@ -212,7 +224,6 @@ export async function fetchNodeStatus(options = {}) {
                 }
             }
         }
-
         if (mempoolRes.ok) {
             const mpData = await mempoolRes.json();
             if (mpData.error) {
@@ -232,7 +243,6 @@ export async function fetchNodeStatus(options = {}) {
                 }
             }
         }
-
         if (evSummaryRes.ok) {
             const evData = await evSummaryRes.json();
             if (evData.error) {
@@ -245,7 +255,6 @@ export async function fetchNodeStatus(options = {}) {
                 updateDashboardValue('v-events-blocks', evData.blocks_observed ?? 0);
             }
         }
-
         if (evCompRes.ok) {
             const compData = await evCompRes.json();
             const divVal = document.getElementById('v-divergence');
@@ -258,7 +267,18 @@ export async function fetchNodeStatus(options = {}) {
                 }
             }
         }
-
+        if (faucetRes && faucetRes.ok) {
+            const faucetData = await faucetRes.json();
+            const badge = document.getElementById('faucet-balance-badge');
+            if (badge) {
+                badge.innerText = faucetData.balance !== undefined ? `${faucetData.balance}` : '0';
+                if (faucetData.balance < 0.01) {
+                    badge.style.color = 'var(--ide-red)';
+                } else {
+                    badge.style.color = 'var(--accent-sig)';
+                }
+            }
+        }
         setRpcStatus(`API ${net} online`);
     } catch (err) {
         setRpcStatus(`API ${net} indisponivel`);
@@ -268,7 +288,7 @@ export async function fetchNodeStatus(options = {}) {
     }
 }
 
-/** Carrega os blocos recentes persistidos pelo listener ZMQ no Redis. */
+/** Carrega blocos recentes persistidos pelo listener ZMQ no Redis. */
 export async function loadInitialBlocks(net = state.currentNet) {
     if (net !== 'regtest' || state.initialBlocksLoaded[net]) return;
     state.initialBlocksLoaded[net] = true;
@@ -299,16 +319,57 @@ export async function ensureRegtestWallet() {
     return false;
 }
 
-/** Executa um comando rapido no terminal ativo com protecoes por rede e macros regtest. */
+/** Executa comandos rapidos, incluindo faucet Signet e macros seguras por rede. */
 export async function executeMacro(cmd) {
-    if (state.currentNet !== 'regtest' && ['getnewaddress', 'getbalance', 'generatetoaddress'].some(w => cmd.includes(w))) {
-        showToast('Comando bloqueado', 'Operacoes de wallet/mineracao ficam restritas ao regtest.', 'warn');
+    if (cmd === 'faucet-dispense') {
+        const btn = document.getElementById('btn-faucet');
+        if (btn && btn.disabled) return;
+        if (btn) btn.disabled = true;
+
+        const t = state.terminals['signet'];
+        t.writeln('\x1b[36m[FAUCET] Solicitando 0.01 sBTC da Hot Wallet interna...\x1b[0m');
+
+        try {
+            const response = await fetch('/api/faucet/dispense/', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ network: 'signet' }),
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+            if (data.error) {
+                t.writeln(`\x1b[31m[ERRO] ${data.error.message || data.error}\x1b[0m\r\n`);
+            } else {
+                t.writeln(`\x1b[32m[SUCESSO] ${data.amount} sBTC enviados!\x1b[0m`);
+                t.writeln(`\x1b[38;5;242mDestino: ${data.address}\x1b[0m`);
+                t.writeln(`\x1b[38;5;242mTXID: ${data.txid}\x1b[0m\r\n`);
+                fetchNodeStatus({ force: true });
+            }
+        } catch (err) {
+            t.writeln(`\x1b[31m[ERRO] Falha de comunicação com a API da Faucet.\x1b[0m\r\n`);
+        }
+        writePrompt(t, 'signet');
+        focusTerminal('signet');
+
+        setTimeout(() => {
+            if (btn) btn.disabled = false;
+        }, 4000);
         return;
     }
+
+    if (state.currentNet !== 'regtest' && cmd.includes('generatetoaddress')) {
+        showToast('Comando bloqueado', 'Mineração e criação de blocos são restritas ao regtest.', 'warn');
+        return;
+    }
+
+    if (state.currentNet === 'mainnet' && ['getnewaddress', 'getbalance', 'sendtoaddress'].some(w => cmd.includes(w))) {
+        showToast('Comando bloqueado', 'Operacoes de wallet na Mainnet estão desabilitadas.', 'warn');
+        return;
+    }
+
     state.terminals[state.currentNet].write(cmd + '\r\n');
     state.cmdHistory[state.currentNet].unshift(cmd);
 
-    // Macro inteligente de 100 blocos para maturar recompensas anteriores.
     if (cmd === 'generatetoaddress 100 [auto]') {
         const t = state.terminals['regtest'];
         t.writeln('\x1b[36m[SISTEMA] Maturando recompensas... Gerando endereco...\x1b[0m');
@@ -324,14 +385,14 @@ export async function executeMacro(cmd) {
         return;
     }
 
-    if (state.currentNet === 'regtest' && ['getnewaddress', 'getbalance'].includes(cmd)) {
-        const ready = await ensureRegtestWallet();
-        if (!ready) {
-            state.terminals[state.currentNet].writeln('\x1b[31m[ERRO] Wallet regtest indisponivel.\x1b[0m\r\n');
-            writePrompt(state.terminals[state.currentNet], state.currentNet);
-            return;
+    if ((state.currentNet === 'regtest' || state.currentNet === 'signet') && ['getnewaddress', 'getbalance'].includes(cmd)) {
+        const walletName = state.currentNet === 'signet' ? 'corecraft_faucet' : CONSTANTS.REGTEST_WALLET;
+        const loaded = await processCommand(state.currentNet, 'listwallets', true);
+        if (!loaded || !loaded.result || !loaded.result.includes(walletName)) {
+            await processCommand(state.currentNet, `loadwallet ${walletName}`, true);
         }
     }
+
     processCommand(state.currentNet, cmd);
 }
 
@@ -361,10 +422,9 @@ export async function mineBlockMacro() {
 
 /** Valida token inicial ou cookie HttpOnly em `/auth/verify/`. */
 export async function verifyToken(token = "") {
-    if (!CONSTANTS.REQUIRE_AUTH) return true;
-    const headers = authHeaders();
+    const headers = { 'Content-Type': 'application/json' };
     if (token) headers['X-CoreCraft-Token'] = token;
-    const response = await fetch('/auth/verify/', { method: 'POST', headers, credentials: 'same-origin' });
+    const response = await fetch('/auth/verify/', { method: 'POST', headers, body: JSON.stringify({}), credentials: 'same-origin' });
     return response.ok;
 }
 

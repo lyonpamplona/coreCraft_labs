@@ -94,7 +94,8 @@ Ao trocar de rede, a plataforma:
 - limpa a timeline visivel;
 - busca o status atual do node;
 - carrega o ultimo bloco conhecido quando a rede ativa e `regtest`;
-- mostra o grupo **Endereco**, **Saldo**, **Forjar 100** e **Forjar 1** somente em `REGTEST`.
+- mostra **Endereco**, **Saldo**, **Forjar 100** e **Forjar 1** em `REGTEST`;
+- mostra **Pingar Faucet** em `SIGNET`, com badge de saldo da wallet `corecraft_faucet`.
 
 O painel comeca em `regtest` apos a autenticacao. Quando a preferencia
 **Mostrar mainnet** fica desligada e a rede ativa era `mainnet`, a interface
@@ -122,7 +123,7 @@ alimentados por endpoints `/api/*`, nao por chamadas RPC diretas do navegador.
 
 | Card | Origem | O que significa |
 | --- | --- | --- |
-| `Node Sync & Divergence` | `/api/blockchain/lag/` + `/api/events/state-comparison/` | Mostra blocos, lag entre headers/blocos e se o melhor bloco RPC diverge do ultimo bloco visto via ZMQ. |
+| `Node Sync & Divergence` | `/api/blockchain/lag/` + `/api/events/state-comparison/` | Mostra blocos, lag entre headers/blocos, progresso de IBD quando o node esta sincronizando e se o melhor bloco RPC diverge do ultimo bloco visto via ZMQ. |
 | `Mempool Intelligence` | `/api/mempool/summary/` | Mostra total de transacoes, fee media em sat/vB e distribuicao Low/Medium/High. |
 | `Event Activity (ZMQ)` | `/api/events/summary/` | Mostra tx/s, transacoes vistas e blocos vistos pelo listener ZMQ. |
 
@@ -141,15 +142,16 @@ de `getrawmempool true` e marca a distribuicao como omitida.
 | `Taxas (6 blk)` | `estimatesmartfee 6` | Estima a taxa para confirmacao em aproximadamente 6 blocos. |
 | `Endereco` | `getnewaddress` | Gera um novo endereco na carteira regtest. O painel carrega/cria a wallet `corecraft` automaticamente. |
 | `Saldo` | `getbalance` | Consulta saldo da carteira regtest. O painel carrega/cria a wallet `corecraft` automaticamente. |
+| `Pingar Faucet` | `POST /api/faucet/dispense/` | Aparece em `SIGNET`; solicita `0.01 sBTC` da wallet interna `corecraft_faucet` e mostra o saldo disponivel no badge. |
 | `Forjar 100` | `loadwallet/createwallet` + `getnewaddress` + `generatetoaddress 100 <endereco>` | Aparece apenas em `REGTEST`; serve para maturar recompensas coinbase anteriores rapidamente. |
 | `Forjar 1` | `loadwallet/createwallet` + `getnewaddress` + `generatetoaddress 1 <endereco>` | Aparece apenas em `REGTEST`; cria um bloco de laboratorio. |
 | `Ajuda` | `help` | Exibe o help real do Bitcoin Core no terminal. |
 | `Limpar` | Acao local | Limpa o terminal ativo e recria o prompt. |
 
-A faixa de comandos e agrupada por rede, mempool, wallet/mineracao e utilitarios.
-O grupo de wallet/mineracao fica oculto em `MAINNET` e `SIGNET`; alem disso,
-`executeMacro` bloqueia esses comandos fora de `REGTEST` mesmo se forem
-disparados manualmente pelo console do navegador.
+A faixa de comandos e agrupada por rede, mempool, wallet/mineracao/faucet e utilitarios.
+Em `MAINNET`, o grupo de wallet fica oculto e comandos de wallet/envio sao bloqueados.
+Em `SIGNET`, aparece apenas **Pingar Faucet**; comandos de mineracao continuam
+restritos ao `REGTEST`.
 
 ### Viewer de Docs
 
@@ -175,7 +177,8 @@ A aba **Ajustes** tem navegacao interna por secoes. Apenas uma secao fica aberta
 
 Tema, fonte e preferencias visuais sao salvos no `localStorage` do navegador.
 O terminal usa `xterm-addon-fit` para recalcular colunas e linhas apos resize,
-troca de rede, mudanca de fonte e retorno da aba do navegador.
+troca de rede, mudanca de fonte, retorno da aba do navegador e alteracoes de
+tamanho detectadas por `ResizeObserver`.
 
 As preferencias de interface disponiveis hoje sao:
 
@@ -408,6 +411,18 @@ help blockchain
 help network
 ```
 
+O painel tambem oferece **Pingar Faucet** em Signet. Esse botao:
+
+- carrega a wallet interna `corecraft_faucet`;
+- consulta o saldo disponivel pelo endpoint `/api/faucet/balance/`;
+- gera um endereco novo no backend;
+- envia valor fixo de `0.01 sBTC`;
+- imprime destino e TXID no terminal Signet.
+
+Para a faucet funcionar, a wallet `corecraft_faucet` precisa existir no node
+Signet e ter saldo. A API nao aceita valor nem endereco arbitrario enviado pelo
+navegador.
+
 Comandos fora da allowlist podem ser bloqueados com uma mensagem semelhante a:
 
 ```text
@@ -454,7 +469,7 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `writePrompt(t, net)` | Escreve o prompt `developer@<rede>:~$` no terminal informado. |
 | `fitTerminal(net)` / `scheduleTerminalFit(net)` | Recalcula colunas e linhas do xterm apos resize, troca de rede, mudanca de fonte ou retorno da aba do navegador. |
 | `focusTerminal(net)` | Foca o terminal ativo, ajusta o tamanho e rola a saida para o final. |
-| `switchNet(net)` | Troca a rede ativa, muda estado visual dos botoes, altera cor dos cards, mostra/esconde o grupo de wallet/mineracao, foca o terminal, limpa a timeline e recarrega status. |
+| `switchNet(net)` | Troca a rede ativa, muda estado visual dos botoes, altera cor dos cards, mostra comandos permitidos por rede, foca o terminal, limpa a timeline e recarrega status. |
 | `selectMainView(view, tabName)` | Alterna a area central entre terminal e viewer de documentacao. |
 | `selectSidePanel(view)` | Alterna Explorer, Docs, Busca, Fluxos, Execucao e Ajustes na barra lateral. |
 | `selectSettingsSection(section)` | Alterna a secao ativa da aba Ajustes. |
@@ -473,9 +488,9 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `addBlockToFeed(d, time)` | Cria um card visual na timeline com altura, tamanho, quantidade de transacoes e taxas quando disponiveis, mantendo limite de eventos recentes. |
 | `formatHelpOutput(t, text)` | Formata a saida textual do comando `help`, destacando categorias e comandos. |
 | `processCommand(net, cmd, silent)` | Envia o comando para `/terminal/`, trata erro de token, imprime resultado no terminal ou retorna o JSON em modo silencioso. |
-| `fetchNodeStatus()` | Consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/` e `/api/events/state-comparison/` com trava de concorrencia, backoff e pausa quando a aba nao esta visivel. |
+| `fetchNodeStatus()` | Consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/`, `/api/events/state-comparison/` e, em Signet, `/api/faucet/balance/` com trava de concorrencia, backoff e pausa quando a aba nao esta visivel. |
 | `loadInitialBlocks()` | Busca `/api/events/latest/` apenas no `regtest` e adiciona o bloco recente na timeline. |
-| `executeMacro(cmd)` | Executa comandos dos botoes rapidos no terminal da rede ativa, envia objetos grandes para `rpc.response`, bloqueia wallet/mineracao fora do regtest e trata o atalho `generatetoaddress 100 [auto]`. |
+| `executeMacro(cmd)` | Executa comandos dos botoes rapidos no terminal da rede ativa, trata `faucet-dispense`, envia objetos grandes para `rpc.response`, bloqueia mineracao fora do regtest e trata o atalho `generatetoaddress 100 [auto]`. |
 | `mineBlockMacro()` | Automatiza mineracao de um bloco em regtest gerando endereco e chamando `generatetoaddress 1 <endereco>`. |
 | `verifyToken(token)` | Valida token inicial ou cookie `HttpOnly` em `/auth/verify/`. |
 | `updateDashboardValue(elementId, newValue)` | Atualiza um valor do dashboard e aplica uma animacao curta de destaque. |
@@ -490,10 +505,12 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `core/views.py` | `health` | Retorna status simples para healthcheck. |
 | `core/views.py` | `terminal_command` | Recebe comandos HTTP, valida token, faz parsing e executa RPC. |
 | `core/views.py` | `mempool_summary` | Resume mempool, calcula fee media/distribuicao e evita varredura profunda quando a mempool e grande. |
-| `core/views.py` | `blockchain_lag` | Retorna blocos, headers e lag de sincronizacao. |
+| `core/views.py` | `blockchain_lag` | Retorna blocos, headers, lag, estado de IBD e progresso de verificacao. |
 | `core/views.py` | `events_summary` | Le Redis para retornar blocos/txs observados e tx/s. |
 | `core/views.py` | `events_latest` | Le Redis para retornar blocos e transacoes recentes. |
 | `core/views.py` | `events_state_comparison` | Compara o melhor bloco RPC com o ultimo bloco visto pelo listener ZMQ. |
+| `core/views.py` | `faucet_balance` | Consulta o saldo da wallet interna `corecraft_faucet` em Signet. |
+| `core/views.py` | `faucet_dispense` | Envia `0.01 sBTC` da wallet interna para endereco novo gerado no backend. |
 | `core/auth.py` | `auth_is_required` | Indica se a autenticacao por token esta ativa. |
 | `core/auth.py` | `validate_token` | Compara o token recebido com `APP_AUTH_TOKEN`. |
 | `core/auth.py` | `auth_cookie_name` | Retorna o nome do cookie `HttpOnly` usado pelo painel. |
@@ -508,7 +525,7 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `core/rpc.py` | `ensure_method_allowed` | Aplica allowlist/blocklist de comandos por rede. |
 | `core/rpc.py` | `rpc_cache_key` / `get_cached_rpc` / `store_cached_rpc` | Cacheia chamadas read-only e erros temporarios por TTL configuravel. |
 | `core/rpc.py` | `rpc_key_lock` | Coalesce chamadas RPC identicas em paralelo. |
-| `core/rpc.py` | `rpc_call` | Executa chamada JSON-RPC autenticada contra Bitcoin Core. |
+| `core/rpc.py` | `rpc_call` | Executa chamada JSON-RPC autenticada contra Bitcoin Core, com politica por rede e `bypass_policy` para fluxos internos controlados. |
 | `core/consumers.py` | `BTCEventConsumer` | Inscreve o cliente no grupo `btc_events` e encaminha eventos. |
 | `core/zmq_listener.py` | `request_shutdown` | Marca encerramento gracioso quando recebe sinal do sistema. |
 | `core/zmq_listener.py` | `mark_ready` | Cria arquivo de prontidao usado pelo healthcheck do listener. |
@@ -561,6 +578,18 @@ curl "http://localhost:8005/api/events/state-comparison/?network=regtest" \
   -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
 ```
 
+Endpoints da faucet Signet:
+
+```bash
+curl "http://localhost:8005/api/faucet/balance/?network=signet" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>"
+
+curl -X POST http://localhost:8005/api/faucet/dispense/ \
+  -H "Content-Type: application/json" \
+  -H "X-CoreCraft-Token: <APP_AUTH_TOKEN>" \
+  --data '{"network":"signet"}'
+```
+
 Healthcheck:
 
 ```bash
@@ -607,6 +636,17 @@ Resolva criando ou carregando uma carteira no terminal regtest:
 createwallet corecraft
 loadwallet corecraft
 ```
+
+### Faucet Signet sem saldo
+
+Sintoma:
+
+```text
+[ERRO] A Faucet esta seca
+```
+
+Confira se a wallet `corecraft_faucet` existe, esta carregavel no node Signet e
+possui saldo suficiente para enviar `0.01 sBTC`.
 
 ### Eventos nao aparecem na timeline
 
@@ -655,7 +695,10 @@ curl -X POST http://localhost:8005/terminal/ \
 
 ### xterm.js nao carrega
 
-A interface usa xterm.js via CDN. Se o navegador estiver sem acesso ao CDN, o terminal pode nao renderizar. Para uso offline, baixe e sirva os assets localmente.
+A interface serve xterm.js e FitAddon a partir de `static/js/vendor/` e
+`static/css/vendor/`. Se o terminal nao renderizar, confira se esses arquivos
+existem e se foram coletados/servidos pelo Django. Para atualizar os vendors,
+use `scripts/download_vendors.py` e rode o build novamente.
 
 ## 11. Encerrar
 
