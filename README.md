@@ -1,4 +1,4 @@
-# coreCraft Multi-Node
+# coreCraft_labs Multi-Node
 
 Interface web para operar e monitorar nodes Bitcoin Core em `mainnet`, `signet` e `regtest`. O projeto combina Django, Django Channels, Redis, WebSocket, ZMQ e xterm.js para oferecer terminais RPC por rede, acoes rapidas, faucet controlada em Signet, dashboard de sincronizacao/mempool/eventos e feed de blocos/transacoes em tempo real.
 
