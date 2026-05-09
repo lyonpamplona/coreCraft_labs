@@ -161,7 +161,9 @@ getnewaddress
 
 Depois envie fundos Signet de teste para a wallet. O backend nao aceita valor
 nem endereco arbitrario do navegador; ele gera o destino e envia sempre o valor
-fixo definido na view.
+fixo definido na view. Quando a wallet existe mas nao tem saldo suficiente, o
+modo demo retorna `simulated: true` com um TXID simulado para a interface; use
+fundos reais de Signet quando precisar validar propagacao na rede.
 
 ## bitcoin-cli
 
@@ -273,3 +275,7 @@ git status --short
 git add .
 git commit -m "Audita projeto e atualiza documentacao tecnica"
 ```
+
+Arquivos locais de apresentacao, exportacoes, rascunhos e notas privadas devem
+ficar em caminhos ignorados, como `docs/_drafts/`, `docs/local/`,
+`docs/private/`, `docs/tmp/` ou `docs/exports/`.

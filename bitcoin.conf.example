@@ -25,7 +25,8 @@ zmqpubhashblock=tcp://0.0.0.0:28333
 
 [signet]
 prune=550
-disablewallet=1
+# Wallet habilitada para a faucet local `corecraft_faucet`.
+disablewallet=0
 maxmempool=50
 rpcallowip=0.0.0.0/0
 rpcbind=0.0.0.0

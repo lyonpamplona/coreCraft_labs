@@ -81,6 +81,23 @@ Retorna os blocos e txs mais recentes persistidos em Redis.
 Compara `getbestblockhash` com o ultimo bloco observado via ZMQ/Redis e indica
 divergencia entre estado RPC e feed de eventos.
 
+### `GET /docs-test/<topico>/`
+
+Renderiza o prototipo isolado de documentacao com visual IDE. As rotas
+principais `/docs/*` continuam desativadas ate a experiencia ser validada.
+Topicos permitidos:
+
+```text
+painel
+mainnet
+signet
+regtest
+arquitetura
+comandos
+fluxos
+operacao
+```
+
 ### `GET /api/faucet/balance/?network=signet`
 
 Consulta saldo da wallet interna `corecraft_faucet`:
@@ -110,9 +127,14 @@ Saida:
 {
   "txid": "<txid>",
   "amount": 0.01,
-  "address": "<endereco-gerado>"
+  "address": "<endereco-gerado>",
+  "simulated": false
 }
 ```
+
+Quando a wallet existe mas esta sem saldo suficiente, o modo demo retorna
+`"simulated": true` e um TXID simulado. Esse retorno preserva o fluxo visual,
+mas nao representa transacao publicada na Signet.
 
 ### `POST /auth/logout/`
 
@@ -138,6 +160,7 @@ Entrega eventos publicados pelo listener:
 - renderiza a interface com sinalizacao de autenticacao;
 - expoe `/health/`;
 - valida login em `/auth/verify/` e remove sessao em `/auth/logout/`;
+- mantem as rotas principais de docs desativadas;
 - valida token de acesso em `/terminal/`;
 - trata JSON invalido;
 - delega parsing, politica e chamada RPC para `core.rpc`;
@@ -145,6 +168,12 @@ Entrega eventos publicados pelo listener:
 - consulta Redis para blocos/txs recentes observados pelo listener ZMQ;
 - expoe endpoints de faucet Signet para saldo e envio fixo controlado;
 - retorna JSON ao frontend.
+
+`core/docs_test.py`:
+
+- renderiza o prototipo `/docs-test/<topico>/`;
+- converte um subconjunto seguro de Markdown para HTML;
+- reaproveita arquivos versionados de `docs/` nos topicos tecnicos.
 
 `core/auth.py`:
 
@@ -208,7 +237,7 @@ Entrega eventos publicados pelo listener:
 - concentra WebSocket, RPC, chamadas `/api/*`, dashboard, faucet Signet, wallet regtest, `verifyToken` e macros **Forjar 1**/**Forjar 100** em `api.js`;
 - cria uma instancia de terminal por rede;
 - mantem entrada e historico por rede;
-- alterna a view central entre terminal e documentacao;
+- alterna a view central entre terminal e o viewer resumido de documentacao;
 - alterna paineis laterais de Explorer, Docs, Busca, Fluxos, Execucao e Ajustes;
 - permite escolher tema, fonte, cores e exibicao do rodape via `localStorage`;
 - permite redimensionar paines laterais em telas desktop;
@@ -217,6 +246,7 @@ Entrega eventos publicados pelo listener:
 - agrupa botoes rapidos em rede, mempool, wallet/mineracao/faucet e utilitarios;
 - oferece `estimatesmartfee 6` no botao **Taxas (6 blk)**;
 - oferece **Pingar Faucet** em Signet para solicitar `0.01 sBTC` da wallet interna;
+- informa quando a faucet retornou uma distribuicao simulada de demo;
 - usa o `help` real do Bitcoin Core e filtra secoes completas para `help <categoria>`;
 - usa ajuda local apenas como contingencia quando o RPC nao retorna a secao pedida;
 - recalcula o tamanho do xterm com `xterm-addon-fit` depois de resize, troca de rede, troca de fonte e mudanca de aba;
@@ -227,7 +257,7 @@ Entrega eventos publicados pelo listener:
 - restringe mineracao ao `regtest` e comandos de wallet em mainnet;
 - atualiza dashboard com polling de 15 segundos, endpoints agregados, trava de concorrencia e backoff por rede;
 - renderiza cards de Node Sync & Divergence, Mempool Intelligence e Event Activity;
-- renderiza timeline visual de blocos com status, hash/resumo, tx, peso e taxas;
+- renderiza timeline visual de blocos/transacoes com status, hash/resumo, tx, peso e taxas;
 - limita a timeline a 18 eventos recentes para preservar densidade visual.
 
 ## Melhorias Planejadas

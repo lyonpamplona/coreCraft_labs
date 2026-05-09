@@ -2,19 +2,26 @@ import { state, CONSTANTS } from './state.js';
 import { showToast, showLogin, hideLogin, setConnectionStatus, setRpcStatus, renderRpcResponse, updateDashboardValue, blockCardMarkup, switchNet } from './ui.js';
 import { writePrompt, scrollTerminalToBottom, buildLocalHelpOutput, formatHelpOutput, extractHelpCategoryOutput, focusTerminal } from './terminal.js';
 
-/** Monta headers JSON; apos login o navegador usa cookie HttpOnly. */
+/**
+ * Cliente HTTP/WebSocket do painel.
+ *
+ * Este modulo centraliza autenticacao, reconexao em tempo real, chamadas RPC,
+ * polling das metricas agregadas e macros operacionais de regtest/signet.
+ */
+
+/** Monta headers JSON; o navegador autenticado usa cookie HttpOnly por padrao. */
 export function authHeaders() {
     const headers = { 'Content-Type': 'application/json' };
     if (state.authToken) headers['X-CoreCraft-Token'] = state.authToken;
     return headers;
 }
 
-/** Calcula a URL WebSocket equivalente ao protocolo HTTP atual. */
+/** Resolve a URL WebSocket mantendo o mesmo host/protocolo da pagina atual. */
 export function websocketUrl() {
     return (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host + '/ws/btc/';
 }
 
-/** Agenda reconexao WebSocket sem criar multiplos timers simultaneos. */
+/** Agenda reconexao WebSocket sem criar multiplos timers concorrentes. */
 export function scheduleSocketReconnect() {
     if (CONSTANTS.REQUIRE_AUTH && !state.authReady) {
         showLogin('Entre novamente para reconectar o WebSocket.');
@@ -28,7 +35,7 @@ export function scheduleSocketReconnect() {
     }, 3000);
 }
 
-/** Abre o WebSocket de eventos BTC quando a autenticacao esta pronta. */
+/** Abre o WebSocket autenticado e registra os handlers de ciclo de vida. */
 export function connectSocket() {
     if (CONSTANTS.REQUIRE_AUTH && !state.authReady) {
         showLogin('Informe o token para iniciar o WebSocket.');
@@ -51,12 +58,12 @@ export function connectSocket() {
     state.socket.onerror = function() {
         setConnectionStatus('ERRO', '#ef4444');
         showToast('WebSocket', 'Nao foi possivel manter a conexao em tempo real.', 'error');
-        try { state.socket.close(); } catch (err) {}
+        try { state.socket.close(); } catch (err) { /* WebSocket ja pode estar fechado. */ }
     };
     state.socket.onmessage = handleSocketMessage;
 }
 
-/** Processa mensagens ZMQ recebidas via WebSocket e atualiza terminal/timeline. */
+/** Processa eventos ZMQ entregues pelo backend e reflete terminal/timeline. */
 export function handleSocketMessage(e) {
     let d;
     try { d = JSON.parse(e.data); } catch (err) { showToast('WebSocket', 'Evento recebido em formato invalido.', 'error'); return; }
@@ -75,39 +82,50 @@ export function handleSocketMessage(e) {
         writePrompt(t, d.network);
         t.write(state.inputs[d.network]);
         scrollTerminalToBottom(t);
+
+        // Agora as transacoes tambem alimentam o fluxo visual (Timeline)
+        if (d.network === state.currentNet) addBlockToFeed(d, ts);
     }
 }
 
-/** Adiciona um card de bloco ao feed lateral e respeita o limite visual. */
+/** Adiciona um bloco ou transacao ao feed visual da rede ativa. */
 export function addBlockToFeed(d, time) {
     const feed = document.getElementById('block-feed');
+    if (!feed) return;
     const item = document.createElement('div');
     item.className = 'block-card';
     const size = Number(d.size || 0);
     const fees = Number(d.fees || 0);
     const sizeFormatted = size > 1024 ? (size/1024).toFixed(1) + ' KB' : `${size || 0} B`;
     const feesFormatted = fees ? `${(fees / 100000000).toFixed(4)} BTC` : '0 sats';
+
+    // Distingue visualmente Blocos de Transacoes no painel
+    const isTx = d.topic === 'rawtx';
+    const title = isTx ? `TX ${d.txid ? d.txid.substring(0,8) : 'Nova'}` : `Bloco ${d.height ? `#${d.height}` : `Seq ${d.sequence}`}`;
+    const icon = isTx ? 'ico-git' : 'ico-block';
+
     item.innerHTML = blockCardMarkup({
-        title: `Bloco ${d.height ? `#${d.height}` : `Seq ${d.sequence}`}`,
-        status: d.topic === 'block_rich' ? 'enriquecido' : 'novo',
-        hash: d.hash || d.block_hash || d.bestblockhash || `seq-${d.sequence || 'unknown'}-${state.currentNet}`,
-        tx: d.tx_count || d.txCount || '-',
+        title: title,
+        status: isTx ? 'mempool' : (d.topic === 'block_rich' ? 'enriquecido' : 'novo'),
+        hash: d.hash || d.txid || d.block_hash || d.bestblockhash || `seq-${d.sequence || 'unknown'}-${state.currentNet}`,
+        tx: isTx ? '1' : (d.tx_count || d.txCount || '-'),
         size: sizeFormatted,
         fees: feesFormatted,
         source: d.topic || 'rawblock',
-        time
+        time: time,
+        icon: icon
     });
     feed.prepend(item);
     while (feed.children.length > CONSTANTS.MAX_TIMELINE_ITEMS) feed.lastElementChild.remove();
 }
 
-/** Detecta respostas normalizadas que representam timeout RPC. */
+/** Detecta erros de timeout em payloads RPC normalizados. */
 export function isRpcTimeout(payload) {
     const message = payload?.error?.message || payload?.error || '';
     return String(message).toLowerCase().includes('timeout');
 }
 
-/** Envia comando para `/terminal/` e direciona objetos grandes ao viewer JSON. */
+/** Envia um comando RPC para o backend e renderiza o retorno no terminal/UI. */
 export async function processCommand(net, cmd, silent = false) {
     const t = state.terminals[net];
     const parts = cmd.toLowerCase().split(' ');
@@ -174,7 +192,7 @@ export async function processCommand(net, cmd, silent = false) {
     }
 }
 
-/** Atualiza o dashboard chamando os endpoints agregados `/api/*`. */
+/** Atualiza cards do dashboard usando endpoints agregados do backend. */
 export async function fetchNodeStatus(options = {}) {
     const { force = false } = options;
     const net = state.currentNet;
@@ -288,24 +306,43 @@ export async function fetchNodeStatus(options = {}) {
     }
 }
 
-/** Carrega blocos recentes persistidos pelo listener ZMQ no Redis. */
+/** Carrega eventos recentes do Redis para preencher a timeline da rede ativa. */
 export async function loadInitialBlocks(net = state.currentNet) {
-    if (net !== 'regtest' || state.initialBlocksLoaded[net]) return;
-    state.initialBlocksLoaded[net] = true;
     try {
         const headers = authHeaders();
         const res = await fetch(`/api/events/latest/?network=${net}`, { headers });
         if (res.ok) {
             const data = await res.json();
+
+            // Garantimos que a timeline inicie limpa para preencher os dados corretos da rede
+            const feed = document.getElementById('block-feed');
+            if (feed) feed.innerHTML = '';
+
+            const events = [];
+            // Agrupa os blocos
             if (data.blocks && data.blocks.length > 0) {
-                const latest = data.blocks[0];
-                addBlockToFeed({ topic: 'block_rich', hash: latest.hash }, new Date(latest.ts * 1000).toLocaleTimeString());
+                data.blocks.forEach(b => events.push({ ...b, topic: 'block_rich' }));
             }
+            // Agrupa as transacoes
+            if (data.txs && data.txs.length > 0) {
+                data.txs.forEach(t => events.push({ ...t, topic: 'rawtx' }));
+            }
+
+            // Ordena tudo por Timestamp (do mais antigo para o mais novo)
+            // para que a funcao addBlockToFeed jogue o mais novo para o topo
+            events.sort((a, b) => a.ts - b.ts);
+
+            events.forEach(ev => {
+                const time = new Date(ev.ts * 1000).toLocaleTimeString();
+                addBlockToFeed(ev, time);
+            });
         }
-    } catch (err) {}
+    } catch (err) {
+        /* Timeline inicial e complementar; falha silenciosa nao bloqueia o painel. */
+    }
 }
 
-/** Garante que a wallet regtest exista e esteja carregada antes de macros. */
+/** Garante que a wallet regtest padrao exista e esteja carregada. */
 export async function ensureRegtestWallet() {
     const loaded = await processCommand('regtest', 'listwallets', true);
     if (loaded && Array.isArray(loaded.result) && loaded.result.includes(CONSTANTS.REGTEST_WALLET)) return true;
@@ -319,7 +356,7 @@ export async function ensureRegtestWallet() {
     return false;
 }
 
-/** Executa comandos rapidos, incluindo faucet Signet e macros seguras por rede. */
+/** Executa comandos dos botoes rapidos respeitando as politicas da rede ativa. */
 export async function executeMacro(cmd) {
     if (cmd === 'faucet-dispense') {
         const btn = document.getElementById('btn-faucet');
@@ -340,7 +377,8 @@ export async function executeMacro(cmd) {
             if (data.error) {
                 t.writeln(`\x1b[31m[ERRO] ${data.error.message || data.error}\x1b[0m\r\n`);
             } else {
-                t.writeln(`\x1b[32m[SUCESSO] ${data.amount} sBTC enviados!\x1b[0m`);
+                const status = data.simulated ? 'simulados para demo' : 'enviados';
+                t.writeln(`\x1b[32m[SUCESSO] ${data.amount} sBTC ${status}!\x1b[0m`);
                 t.writeln(`\x1b[38;5;242mDestino: ${data.address}\x1b[0m`);
                 t.writeln(`\x1b[38;5;242mTXID: ${data.txid}\x1b[0m\r\n`);
                 fetchNodeStatus({ force: true });
@@ -396,7 +434,7 @@ export async function executeMacro(cmd) {
     processCommand(state.currentNet, cmd);
 }
 
-/** Minera um bloco em regtest criando ou carregando a wallet padrao antes da chamada RPC. */
+/** Macro dedicada para minerar um bloco em regtest com endereco automatico. */
 export async function mineBlockMacro() {
     if (state.currentNet !== 'regtest') {
         showToast('Comando bloqueado', 'Operacoes de mineracao ficam restritas ao regtest.', 'warn');
@@ -420,7 +458,7 @@ export async function mineBlockMacro() {
     }
 }
 
-/** Valida token inicial ou cookie HttpOnly em `/auth/verify/`. */
+/** Valida token informado ou cookie ja existente em `/auth/verify/`. */
 export async function verifyToken(token = "") {
     const headers = { 'Content-Type': 'application/json' };
     if (token) headers['X-CoreCraft-Token'] = token;
@@ -428,7 +466,7 @@ export async function verifyToken(token = "") {
     return response.ok;
 }
 
-/** Trata o submit do overlay de login e inicia a aplicacao autenticada. */
+/** Trata o envio do formulario de login e inicia a sessao autenticada. */
 export async function submitLogin(e) {
     e.preventDefault();
     const input = document.getElementById('login-token');
@@ -449,7 +487,7 @@ export async function submitLogin(e) {
     finally { if (button) button.disabled = false; }
 }
 
-/** Inicializa ou reativa WebSocket, rede padrao e polling do dashboard. */
+/** Inicializa WebSocket, rede padrao e polling depois da autenticacao. */
 export function startApp() {
     if (state.appStarted) {
         connectSocket();

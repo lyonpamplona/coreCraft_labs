@@ -16,17 +16,21 @@
 | `core/auth.py` | Validacao de token/cookie HTTP/WebSocket e Origin. |
 | `core/rpc.py` | Parser, politica por rede e cliente JSON-RPC. |
 | `core/views.py` | Renderizacao da interface, healthcheck, endpoint RPC HTTP e APIs agregadas do dashboard. |
+| `core/docs_test.py` | Rota experimental `/docs-test/*` para validar a proxima experiencia de Docs. |
 | `core/asgi.py` | Roteamento HTTP/WebSocket. |
 | `core/consumers.py` | Consumer WebSocket do grupo `btc_events`. |
 | `core/zmq_listener.py` | Listener ZMQ multi-rede, publicador de eventos e gravador de resumos em Redis. |
 | `templates/index.html` | Shell da interface multi-terminal e includes dos componentes. |
 | `templates/components/` | Componentes HTML de header, sidebars, metricas, viewer, terminal, login e icones. |
+| `templates/docs_test_page.html` | Pagina experimental de documentacao em `/docs-test/*`. |
 | `static/css/panel.css` | Agregador dos estilos segmentados do painel. |
 | `static/css/panel/` | Estilos separados por base, shell, sidebars, conteudo, terminal, controles e responsividade. |
+| `static/css/docs-test.css` | Estilos isolados do prototipo de Docs. |
 | `static/js/panel/` | JavaScript separado por estado, UI, API, terminal e bootstrap. |
+| `static/js/docs-test.js` | Ajustes da pagina `/docs-test/*`, sincronizando tema/fonte com o painel e filtros de exibicao. |
 | `static/css/vendor/` / `static/js/vendor/` | Assets locais do xterm.js e xterm-addon-fit usados pelo terminal. |
 | `scripts/download_vendors.py` | Script para baixar/atualizar vendors locais do xterm.js. |
-| `docs/` | Documentacao, auditoria e roadmap. |
+| `docs/` | Documentacao tecnica versionada; rascunhos/exportacoes locais devem ficar em pastas ignoradas como `docs/_drafts/`, `docs/private/` ou `docs/exports/`. |
 
 ## `core/views.py`
 
@@ -43,7 +47,7 @@ Funcoes:
 - `events_latest(request)`: retorna blocos/txs recentes persistidos pelo listener.
 - `events_state_comparison(request)`: compara melhor bloco RPC com ultimo bloco observado via ZMQ.
 - `faucet_balance(request)`: consulta o saldo da wallet Signet `corecraft_faucet`.
-- `faucet_dispense(request)`: envia `0.01 sBTC` da wallet interna para endereco novo gerado pelo backend.
+- `faucet_dispense(request)`: envia `0.01 sBTC` da wallet interna para endereco novo gerado pelo backend ou retorna TXID simulado quando o modo demo esta sem saldo real.
 
 ## `core/rpc.py`
 
@@ -116,10 +120,11 @@ Contem:
 
 Contem:
 
-- `state.js`: estado compartilhado, constantes, temas, docs, autocomplete e ajuda local de contingencia;
+- `state.js`: estado compartilhado, constantes, temas, topicos resumidos de docs, autocomplete e ajuda local de contingencia;
 - `terminal.js`: prompt, foco, resize, historico, autocomplete, formatacao de saida, filtro de `help` e criacao das instancias xterm.js por rede;
-- `ui.js`: viewer JSON, docs, markup seguro da timeline, troca de rede, navegacao, paineis, ajustes, temas, fontes, preferencias e toasts;
-- `api.js`: headers de autenticacao, verificacao de token, WebSocket, eventos ZMQ, envio de comandos para `/terminal/`, chamadas `/api/*`, polling, faucet Signet, wallet regtest, macros **Forjar 1**/**Forjar 100** e bootstrap autenticado;
+- `ui.js`: viewer JSON, viewer resumido de Docs, markup seguro da timeline, troca de rede, navegacao, paineis, ajustes, temas, fontes, preferencias e toasts;
+- `../docs-test.js`: carrega `corecraft.uiTheme` e `corecraft.uiFont`, permite trocar tema/fonte em `/docs-test/*` e salva filtros `corecraft.docsTestPrefs`;
+- `api.js`: headers de autenticacao, verificacao de token, WebSocket, eventos ZMQ, envio de comandos para `/terminal/`, chamadas `/api/*`, polling, faucet Signet com flag `simulated`, wallet regtest, macros **Forjar 1**/**Forjar 100** e bootstrap autenticado;
 - `main.js`: exposicao de handlers usados pelo template, listeners do DOM, resize handles, carregamento de preferencias e verificacao inicial de token.
 
 ## Pontos de Atencao

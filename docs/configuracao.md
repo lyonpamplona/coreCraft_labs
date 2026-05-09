@@ -136,6 +136,22 @@ Perfil pruned recomendado neste projeto:
 - signet: `prune=550`, wallet habilitada se a faucet `corecraft_faucet` for usada, mempool menor e apenas eventos ZMQ de bloco;
 - regtest: sem prune, com `txindex=1`, wallet habilitada e `rawtx` ativo para testes locais.
 
+## Higiene de Git e Arquivos Locais
+
+O repositorio versiona exemplos, codigo e documentacao tecnica. Arquivos reais
+de operacao e material temporario devem ficar fora do Git:
+
+- `.env`, `.env.*`, `bitcoin.conf` e `bitcoin.conf.local`;
+- dados de nodes, wallets, chainstate, indexes e volumes locais;
+- caches Python/Node, `node_modules/`, builds, logs e coberturas;
+- rascunhos ou documentos privados em `docs/_drafts/`, `docs/local/`,
+  `docs/private/`, `docs/tmp/` e `docs/exports/`;
+- decks/exportacoes como `*.pptx`, `*.key` e `*.pdf`.
+
+Se um arquivo ja foi versionado antes de entrar no `.gitignore`, remova apenas
+do indice com `git rm --cached <arquivo>` e mantenha a copia local quando ela
+ainda for util no seu ambiente.
+
 ## Logs
 
 ```bash
@@ -213,4 +229,6 @@ loadwallet corecraft_faucet
 
 Depois envie fundos de teste para essa wallet por uma faucet externa ou outro
 fluxo Signet. O botao **Pingar Faucet** so distribui `0.01 sBTC` se a wallet
-tiver saldo suficiente.
+tiver saldo suficiente. Se a wallet existir, mas nao houver saldo, o modo demo
+pode retornar `simulated: true` com TXID simulado; isso nao confirma envio real
+na rede Signet.

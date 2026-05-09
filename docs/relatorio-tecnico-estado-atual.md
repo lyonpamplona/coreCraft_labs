@@ -92,7 +92,7 @@ Endpoints atuais:
 - `GET /api/events/latest/?network=<rede>`: retorna ate 5 blocos e 10 txs recentes do Redis.
 - `GET /api/events/state-comparison/?network=<rede>`: compara `getbestblockhash` com o ultimo bloco observado via ZMQ.
 - `GET /api/faucet/balance/?network=signet`: consulta saldo da wallet `corecraft_faucet`.
-- `POST /api/faucet/dispense/`: envia `0.01 sBTC` da wallet interna para endereco novo gerado no backend.
+- `POST /api/faucet/dispense/`: envia `0.01 sBTC` da wallet interna para endereco novo gerado no backend; se a wallet existir mas estiver sem saldo suficiente, o modo demo retorna `simulated: true` com TXID simulado.
 
 ### Pontos Fortes
 
@@ -101,6 +101,7 @@ Endpoints atuais:
 - O endpoint de mempool possui escudo anti-varredura para mempools acima de 1500 transacoes.
 - A comparacao RPC vs ZMQ ajuda a detectar feed atrasado ou divergente.
 - A faucet nao recebe valor nem endereco arbitrario do cliente, reduzindo o escopo operacional.
+- A flag `simulated` deixa explicito quando o fluxo foi apenas visual e nao houve propagacao real na Signet.
 
 ### Pontos de Atencao
 
@@ -299,7 +300,7 @@ Recomendado adicionar:
 | Media | Listener ZMQ silencia excecoes | Diagnostico de eventos perdidos fica dificil | Logar falhas com rate limit ou nivel debug/warning. |
 | Media | Cache RPC sem limite global | Crescimento de memoria em uso adversarial | Adicionar limite LRU ou limpeza periodica. |
 | Media | Redis e consultado por chave derivada de `network` sem validacao explicita | Chaves arbitrarias podem ser consultadas | Validar rede contra conjunto permitido antes de acessar Redis. |
-| Media | Faucet Signet depende de wallet local com saldo | Demo pode falhar sem preparo previo | Documentar bootstrap da wallet e checar saldo antes da demo. |
+| Media | Faucet Signet depende de wallet local com saldo | Sem saldo, o modo demo retorna TXID simulado e pode ser confundido com envio real | Documentar `simulated`, checar saldo antes da demo e remover o fallback em validacoes reais. |
 | Baixa | Estilos inline em `terminal.html` | Padronizacao visual pode ficar espalhada | Mover regras para `static/css/panel/40-terminal.css`. |
 | Baixa | Cache bust manual `?v=20260504` | Navegador pode ficar com assets antigos | Automatizar versao por build/env. |
 | Baixa | `sidebar_left.html` concentra muitos paineis | Arquivo pode crescer novamente | Separar paineis laterais em componentes menores se continuar evoluindo. |
@@ -323,20 +324,25 @@ Recomendado adicionar:
 Comandos executados no ambiente local:
 
 ```bash
-PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py
+PYTHONPYCACHEPREFIX=/tmp/bitcoin-regtest-pycache python3 -m py_compile manage.py core/settings.py core/urls.py core/views.py core/wsgi.py core/asgi.py core/consumers.py core/zmq_listener.py core/auth.py core/rpc.py core/docs_test.py
 git diff --check
 docker compose config
+docker compose run --rm --no-deps web-app python manage.py check
+docker compose run --rm --no-deps web-app ruff check core/ manage.py
+docker build --target linter-js -t corecraft-js-lint .
 ```
 
-`ruff` e `npx eslint` estao configurados no Dockerfile, mas nao foram executados
-diretamente no host desta revisao porque `ruff`, `node` e `npx` nao estavam
-instalados no ambiente local.
+`ruff` e `npx eslint` nao estavam instalados diretamente no host, entao foram
+executados pelo container/estagio Docker do projeto.
 
 Resultado:
 
 - compilacao Python passou;
 - checagem de whitespace/diff passou;
-- nao foi possivel executar `node --check`, pois `node` nao esta instalado no ambiente;
+- `docker compose config` passou;
+- `manage.py check` passou dentro do container;
+- `ruff check` passou dentro do container;
+- o estagio `linter-js` passou e executou `npx eslint static/js/panel/`;
 - nao foram encontrados testes automatizados versionados.
 
 ## Conclusao

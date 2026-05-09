@@ -114,7 +114,26 @@ sequenceDiagram
 
 `help <categoria>` funciona para as categorias expostas pelo Bitcoin Core, como `blockchain`, `control`, `mining`, `network`, `rawtransactions`, `signer`, `util`, `wallet` e `zmq`. Quando o argumento nao e uma categoria, o painel tenta tratar como ajuda especifica de comando, por exemplo `help getblock`.
 
-## 6. Eventos ZMQ
+## 6. Prototipo de Docs
+
+```mermaid
+sequenceDiagram
+    participant UI as Docs Test
+    participant PAGE as /docs-test/<topico>/
+    participant FS as docs/*.md
+
+    UI->>PAGE: GET /docs-test/regtest/
+    PAGE->>PAGE: valida topico permitido
+    PAGE-->>UI: pagina HTML experimental com visual IDE
+
+    UI->>PAGE: GET /docs-test/arquitetura/
+    PAGE->>FS: le docs/arquitetura.md
+    PAGE-->>UI: Markdown tecnico renderizado
+```
+
+As rotas principais `/docs/*` estao desativadas. Topicos `painel`, `mainnet`, `signet` e `regtest` existem apenas no prototipo `/docs-test/*`, enquanto `arquitetura`, `comandos`, `fluxos` e `operacao` reaproveitam arquivos Markdown versionados.
+
+## 7. Eventos ZMQ
 
 ```mermaid
 sequenceDiagram
@@ -147,7 +166,7 @@ Payload tipico:
 }
 ```
 
-## 7. Macro de Mineracao
+## 8. Macro de Mineracao
 
 Disponivel apenas para `regtest`:
 
@@ -156,7 +175,7 @@ Disponivel apenas para `regtest`:
 3. aguarda evento ZMQ;
 4. atualiza terminal e timeline.
 
-## 8. Faucet Signet
+## 9. Faucet Signet
 
 Disponivel apenas quando a rede ativa e `signet`:
 
@@ -173,10 +192,16 @@ sequenceDiagram
     RPC->>Sig: JSON-RPC
     View->>RPC: getbalance (bypass_policy)
     View->>RPC: getnewaddress (bypass_policy)
-    View->>RPC: sendtoaddress address 0.01 (bypass_policy)
-    View-->>UI: txid, amount, address
+    alt saldo >= 0.01
+        View->>RPC: sendtoaddress address 0.01 (bypass_policy)
+        View-->>UI: txid, amount, address, simulated=false
+    else saldo insuficiente em modo demo
+        View-->>UI: txid simulado, amount, address, simulated=true
+    end
 ```
 
 A API nao recebe valor nem endereco arbitrario do navegador. O backend gera o
-destino, usa valor fixo e retorna erro se a wallet `corecraft_faucet` nao
-existir ou nao tiver saldo suficiente.
+destino e usa valor fixo. Se a wallet `corecraft_faucet` nao existir, retorna
+erro. Se a wallet existir mas estiver sem saldo suficiente, o modo demo retorna
+um TXID simulado para preservar a apresentacao; esse retorno nao e uma
+transacao publicada na Signet.

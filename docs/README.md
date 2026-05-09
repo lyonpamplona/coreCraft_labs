@@ -17,3 +17,13 @@ Leitura recomendada:
 11. [Mapa do codigo](codigo.md): funcoes, classes, contratos e pontos de extensao.
 
 O objetivo do projeto e oferecer um ambiente local para estudo, automacao e observabilidade de nodes Bitcoin Core em `mainnet`, `signet` e `regtest`.
+
+## O que versionar em `docs/`
+
+Versione guias que ajudam outra pessoa a executar, entender ou manter o projeto:
+
+- arquitetura, fluxos, configuracao, comandos e mapa do codigo;
+- tutorial de uso da plataforma;
+- roteiro de apresentacao e relatorios tecnicos relevantes.
+
+Nao versione rascunhos privados, exportacoes de slides/PDFs, anotacoes locais ou material com dados sensiveis. Use pastas ignoradas pelo Git, como `docs/_drafts/`, `docs/local/`, `docs/private/`, `docs/tmp/` e `docs/exports/`.

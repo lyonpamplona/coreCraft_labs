@@ -20,9 +20,10 @@ Fluxos principais:
 3. O terminal web envia comandos para `POST /terminal/`.
 4. A view Django converte a linha em chamada JSON-RPC para a rede selecionada e aplica as politicas por rede.
 5. O dashboard consulta endpoints agregados em `/api/*` para sync/lag, mempool, atividade ZMQ e saldo da faucet Signet quando aplicavel.
-6. O listener ZMQ recebe `rawtx`, `rawblock` e `hashblock`.
-7. O listener publica eventos no grupo `btc_events` via Redis/Channels e grava resumos recentes em Redis.
-8. O WebSocket `/ws/btc/` entrega os eventos ao navegador.
+6. A guia lateral de Docs mantem o viewer resumido integrado ao painel; o prototipo funcional de rotas fica isolado em `/docs-test/`.
+7. O listener ZMQ recebe `rawtx`, `rawblock` e `hashblock`.
+8. O listener publica eventos no grupo `btc_events` via Redis/Channels e grava resumos recentes em Redis.
+9. O WebSocket `/ws/btc/` entrega os eventos ao navegador.
 
 ## Estrutura do Projeto
 
@@ -135,7 +136,27 @@ getbalance
 
 As acoes rapidas de regtest geram endereco automaticamente com `getnewaddress`: **Forjar 1** executa `generatetoaddress 1 <endereco>` e **Forjar 100** executa `generatetoaddress 100 <endereco>` para acelerar a maturacao de recompensas anteriores.
 
-Em `SIGNET`, o botao **Pingar Faucet** chama `/api/faucet/dispense/` e solicita `0.01 sBTC` da wallet interna `corecraft_faucet`. O dashboard consulta `/api/faucet/balance/` para exibir o saldo disponivel no badge do botao.
+Em `SIGNET`, o botao **Pingar Faucet** chama `/api/faucet/dispense/` e solicita `0.01 sBTC` da wallet interna `corecraft_faucet`. O dashboard consulta `/api/faucet/balance/` para exibir o saldo disponivel no badge do botao. No modo atual de demo, se a wallet existir mas estiver sem saldo suficiente, a API retorna `simulated: true` com um TXID simulado para preservar o fluxo visual; isso nao representa uma transacao publicada na Signet.
+
+## Docs
+
+A aba `docs` e o painel lateral de documentacao permanecem no viewer resumido
+do painel, sem rotas principais em `/docs/*`.
+
+Para testar a proxima versao antes de aplica-la no codigo principal, use
+`/docs-test/`. Esse prototipo tem layout IDE proprio, navega por topicos e usa
+as mesmas chaves de tema/fonte do painel principal.
+
+Topicos em teste:
+
+- `Operar Painel`: entrada, areas da tela, terminal, dashboard e timeline.
+- `Mainnet`: leitura segura, sincronizacao, mempool e limites.
+- `Signet`: rede publica de testes, faucet interna e wallet `corecraft_faucet`.
+- `Regtest`: wallet `corecraft`, mineracao local, maturacao e eventos ZMQ.
+- Arquitetura, Comandos, Fluxos e Operacao: renderizados a partir dos Markdown em `docs/`.
+
+O prototipo `/docs-test/*` tambem tem filtros proprios para esconder ou mostrar
+menu lateral, docs de rede, docs tecnicos, blocos de codigo e tabelas.
 
 ## Documentacao
 
@@ -150,6 +171,12 @@ Em `SIGNET`, o botao **Pingar Faucet** chama `/api/faucet/dispense/` e solicita 
 - [Configuracao e operacao](docs/configuracao.md)
 - [Guia de comandos](docs/comandos.md)
 - [Mapa do codigo](docs/codigo.md)
+
+## Higiene de Repositorio
+
+O Git ignora arquivos locais sensiveis ou descartaveis, incluindo `.env`, `bitcoin.conf`, dados de nodes, caches, `node_modules/`, builds, logs e rascunhos/exportacoes em `docs/_drafts/`, `docs/local/`, `docs/private/`, `docs/tmp/` e `docs/exports/`.
+
+Documentos Markdown tecnicos que explicam o projeto devem ficar em `docs/`. Materiais temporarios de apresentacao, PDFs exportados, decks e notas privadas devem ficar nas pastas ignoradas acima.
 
 ## Notas de Seguranca
 

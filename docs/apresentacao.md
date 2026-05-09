@@ -81,7 +81,7 @@ Bitcoin Core mainnet / signet / regtest
 - **Terminal web por rede:** cada rede tem seu proprio terminal, historico, prompt e respostas estruturadas em `rpc.response`.
 - **Interface estilo IDE:** Explorer, Activity Bar, abas, editor `rpc.response`, viewer de docs, terminal e statusbar em uma mesma tela.
 - **Acoes rapidas agrupadas:** botoes para Info, Peers, Mempool, Taxas (6 blk), Endereco, Saldo, Forjar 100, Forjar 1, Ajuda e limpeza do terminal.
-- **Faucet Signet integrada:** botao **Pingar Faucet** solicita `0.01 sBTC` da wallet interna `corecraft_faucet` e mostra saldo disponivel no badge do botao.
+- **Faucet Signet integrada:** botao **Pingar Faucet** solicita `0.01 sBTC` da wallet interna `corecraft_faucet` e mostra saldo disponivel no badge do botao. Quando a wallet existe mas esta sem saldo suficiente, o modo demo retorna `simulated: true` com TXID simulado para nao interromper a apresentacao.
 - **Help real do Bitcoin Core:** `help` exibe o retorno completo do node, `help <categoria>` filtra secoes reais e `help <comando>` busca ajuda especifica.
 - **Dashboard operacional protegido:** mostra Node Sync & Divergence, Mempool Intelligence e Event Activity com polling controlado, trava de concorrencia e backoff.
 - **APIs agregadas para metricas:** `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/`, `/api/events/latest/` e `/api/events/state-comparison/` reduzem logica pesada no navegador.
@@ -131,7 +131,7 @@ Uma boa apresentacao pode seguir esta ordem:
 10. Mostrar a timeline recebendo o evento de bloco via ZMQ/WebSocket.
 11. Abrir a aba `docs` pela Activity Bar ou pelo Explorer e mostrar os cards de Arquitetura, Comandos, Fluxos e Operacao.
 12. Abrir Ajustes e demonstrar preset, fonte, cores, rodape, modo compacto, terminal fixo e ocultar/mostrar mainnet.
-13. Alternar para `SIGNET`, mostrar o botao **Pingar Faucet** e explicar que ele usa a wallet interna `corecraft_faucet` com envio fixo de `0.01 sBTC`.
+13. Alternar para `SIGNET`, mostrar o botao **Pingar Faucet** e explicar que ele usa a wallet interna `corecraft_faucet` com envio fixo de `0.01 sBTC`; se o retorno trouxer `simulated: true`, deixe claro que foi um fluxo visual de demo, nao uma transacao real.
 14. Alternar para `MAINNET` e executar um comando somente leitura, como:
 
    ```text
@@ -173,7 +173,7 @@ Uma boa apresentacao pode seguir esta ordem:
 
 - A autenticacao e baseada em token compartilhado, nao em usuarios individuais.
 - A interface foi pensada para laboratorio local, nao para exposicao publica.
-- A faucet Signet depende da wallet local `corecraft_faucet` existir, estar carregavel e ter saldo.
+- A faucet Signet depende da wallet local `corecraft_faucet` existir, estar carregavel e ter saldo para envio real; sem saldo, o modo demo pode retornar TXID simulado.
 - Os assets do xterm.js sao versionados em `static/*/vendor/`; para atualizar a versao, rode o script de download e valide o build.
 - Mainnet pode demorar para sincronizar e consumir recursos mesmo com `prune`.
 - A timeline mostra eventos recebidos enquanto a interface esta aberta; nao e um historico persistente.

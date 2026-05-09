@@ -47,7 +47,7 @@ flowchart LR
 
 ### Backend HTTP
 
-`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly`, recebe comandos de `/terminal/` e expoe endpoints `/api/*` para o dashboard. Comandos livres continuam delegados para `core.rpc`; os endpoints agregados combinam RPC e Redis para entregar lag de sincronizacao, resumo de mempool, atividade ZMQ e comparacao entre melhor bloco RPC e ultimo bloco observado pelo listener. Os endpoints `/api/faucet/balance/` e `/api/faucet/dispense/` operam a wallet Signet `corecraft_faucet` com valor fixo e destino gerado no backend.
+`core/views.py` valida o login em `/auth/verify/`, grava cookie `HttpOnly`, recebe comandos de `/terminal/` e expoe endpoints `/api/*` para o dashboard. Comandos livres continuam delegados para `core.rpc`; os endpoints agregados combinam RPC e Redis para entregar lag de sincronizacao, resumo de mempool, atividade ZMQ e comparacao entre melhor bloco RPC e ultimo bloco observado pelo listener. As rotas principais `/docs/*` estao desativadas; o prototipo isolado em `/docs-test/*` fica em `core/docs_test.py` ate ser validado. Os endpoints `/api/faucet/balance/` e `/api/faucet/dispense/` operam a wallet Signet `corecraft_faucet` com valor fixo e destino gerado no backend; em modo demo, saldo insuficiente pode retornar `simulated: true`.
 
 ### Backend ASGI/WebSocket
 
@@ -62,4 +62,4 @@ flowchart LR
 - A autenticacao atual usa token compartilhado com cookie `HttpOnly`, nao usuarios individuais.
 - `bitcoin.conf` real e local/ignorado; mantenha apenas `bitcoin.conf.example` versionado.
 - O frontend ainda e vanilla HTML/CSS/JS, mas ja esta separado em template, CSS, JS estaticos e vendors locais.
-- A faucet Signet depende da wallet local `corecraft_faucet` existir e ter saldo; ela nao substitui uma faucet publica.
+- A faucet Signet depende da wallet local `corecraft_faucet` existir e ter saldo para envios reais; o modo demo com `simulated: true` nao substitui uma faucet publica nem prova propagacao na rede.

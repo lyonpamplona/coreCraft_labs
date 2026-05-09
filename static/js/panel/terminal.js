@@ -38,7 +38,7 @@ export function fitTerminal(net = state.currentNet) {
     const rect = panel.getBoundingClientRect();
     if (rect.width < 80 || rect.height < 80) return;
     if (state.fitAddons[net]) {
-        try { state.fitAddons[net].fit(); scrollTerminalToBottom(t); return; } catch (err) {}
+        try { state.fitAddons[net].fit(); scrollTerminalToBottom(t); return; } catch (err) { /* Usa fallback manual abaixo. */ }
     }
     const fontSize = Number(t.options.fontSize) || 14;
     const lineHeight = Number(t.options.lineHeight) || 1.4;

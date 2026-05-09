@@ -179,7 +179,7 @@ Retorna somente o cabecalho do bloco, util para verificacoes rapidas.
 
 ## Wallet e Mineracao em Regtest
 
-Esses comandos devem ser usados em `regtest`. Mainnet e signet estao configuradas com `disablewallet=1` neste projeto.
+Mineracao deve ser usada apenas em `regtest`. Mainnet permanece com `disablewallet=1`; Signet pode manter wallet habilitada para a faucet local `corecraft_faucet`.
 
 ### Listar wallets carregadas
 
@@ -244,6 +244,22 @@ docker compose exec btc-regtest sh -lc 'bitcoin-cli -regtest -rpcuser="$REGTEST_
 ```
 
 Mostra o saldo disponivel da wallet carregada.
+
+## Wallet da Faucet em Signet
+
+Esses comandos preparam a wallet usada pelo botao **Pingar Faucet**.
+
+```bash
+docker compose exec btc-signet sh -lc 'bitcoin-cli -signet -rpcuser="$SIGNET_RPC_USER" -rpcpassword="$SIGNET_RPC_PASS" createwallet corecraft_faucet'
+docker compose exec btc-signet sh -lc 'bitcoin-cli -signet -rpcuser="$SIGNET_RPC_USER" -rpcpassword="$SIGNET_RPC_PASS" loadwallet corecraft_faucet'
+docker compose exec btc-signet sh -lc 'bitcoin-cli -signet -rpcuser="$SIGNET_RPC_USER" -rpcpassword="$SIGNET_RPC_PASS" getbalance'
+```
+
+Depois envie fundos Signet de teste para um endereco dessa wallet:
+
+```bash
+docker compose exec btc-signet sh -lc 'bitcoin-cli -signet -rpcuser="$SIGNET_RPC_USER" -rpcpassword="$SIGNET_RPC_PASS" getnewaddress'
+```
 
 ## Diagnostico de Credenciais RPC
 

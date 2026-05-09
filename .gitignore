@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 .python-version
+.python_history
 
 # Ambientes virtuais
 .venv/
@@ -23,11 +24,13 @@ media/
 .coverage
 htmlcov/
 .tox/
+coverage.xml
 
 # Variaveis de ambiente e segredos locais
 .env
 .env.*
 !.env.example
+.envrc
 *.local
 bitcoin.conf
 bitcoin.conf.local
@@ -37,13 +40,41 @@ bitcoin.conf.local
 bitcoin-data/
 redis-data/
 .bitcoin/
+blocks/
+chainstate/
+indexes/
+wallets/
 
 # Logs e arquivos temporarios
 *.log
 *.pid
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 tmp/
 temp/
+.tmp/
 
+# Node e builds locais
+node_modules/
+dist/
+build/
+
+# Documentacao local, rascunhos e exportacoes que nao devem ir para o GitHub
+docs/_drafts/
+docs/drafts/
+docs/local/
+docs/private/
+docs/tmp/
+docs/exports/
+docs/*.local.md
+docs/*.private.md
+docs/*rascunho*.md
+docs/*draft*.md
+*.pptx
+*.key
+*.pdf
+txt.txt
 
 auditoria.md
 roadmap.md

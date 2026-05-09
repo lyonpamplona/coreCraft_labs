@@ -7,9 +7,12 @@ WebSocket ficam declaradas em ``core.asgi``.
 
 from django.urls import path
 from . import views
+from .docs_test import docs_test_page
 
 urlpatterns = [
     path('', views.index, name='index'),
+    path('docs-test/', docs_test_page, name='docs_test_page'),
+    path('docs-test/<slug:topic>/', docs_test_page, name='docs_test_page_topic'),
     path('auth/logout/', views.auth_logout, name='auth_logout'),
     path('auth/verify/', views.auth_verify, name='auth_verify'),
     path('health/', views.health, name='health'),

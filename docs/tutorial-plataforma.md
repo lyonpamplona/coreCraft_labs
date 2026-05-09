@@ -93,7 +93,7 @@ Ao trocar de rede, a plataforma:
 - muda a cor de destaque dos cards;
 - limpa a timeline visivel;
 - busca o status atual do node;
-- carrega o ultimo bloco conhecido quando a rede ativa e `regtest`;
+- carrega blocos e transacoes recentes do Redis para a timeline da rede ativa;
 - mostra **Endereco**, **Saldo**, **Forjar 100** e **Forjar 1** em `REGTEST`;
 - mostra **Pingar Faucet** em `SIGNET`, com badge de saldo da wallet `corecraft_faucet`.
 
@@ -155,14 +155,31 @@ restritos ao `REGTEST`.
 
 ### Viewer de Docs
 
-Clique em `docs` no Explorer, na Activity Bar ou na aba superior `docs` para trocar a area central do terminal para o viewer de documentacao. O menu de Docs permite escolher:
+Clique em `docs` no Explorer, na Activity Bar ou na aba superior `docs` para
+abrir a guia resumida de documentacao integrada ao painel. As rotas principais
+`/docs/*` estao desativadas neste momento.
 
-- Arquitetura;
-- Comandos;
-- Fluxos;
-- Operacao.
+Para validar a proxima versao antes de aplicar no fluxo principal, acesse
+`/docs-test/`. Esse prototipo abre topicos em endpoints proprios, sem alterar a
+navegacao atual do painel.
 
-O viewer mostra resumos operacionais rapidos dentro do painel. A documentacao completa continua no diretorio `docs/`, com arquivos como `arquitetura.md`, `comandos.md`, `fluxos.md`, `configuracao.md` e `bitcoin-cli-docker.md`.
+Topicos disponiveis:
+
+- `Operar Painel`: entrada, areas da tela, terminal, dashboard, timeline e boas praticas.
+- `Mainnet`: leitura segura, sincronizacao, mempool e limites da rede principal.
+- `Signet`: rede publica de testes, faucet interna, wallet `corecraft_faucet` e comandos recomendados.
+- `Regtest`: wallet `corecraft`, mineracao local, maturacao de coinbase e eventos ZMQ.
+- `Arquitetura`, `Comandos`, `Fluxos` e `Operacao`: conteudo carregado dos Markdown tecnicos em `docs/`.
+
+O prototipo de documentacao usa um layout proprio com visual IDE, menu lateral
+persistente e conteudo formatado com tabelas, listas, headings e blocos de
+comando.
+
+As preferencias visuais sao compartilhadas com o painel principal. Quando o
+tema ou a fonte sao alterados no IDE, `/docs-test/*` le as mesmas chaves do
+`localStorage` e aplica o visual salvo. A pagina de teste tambem tem ajustes
+proprios para mostrar ou ocultar menu lateral, topicos de rede, topicos
+tecnicos, blocos de codigo e tabelas.
 
 ### Ajustes de Interface
 
@@ -417,11 +434,14 @@ O painel tambem oferece **Pingar Faucet** em Signet. Esse botao:
 - consulta o saldo disponivel pelo endpoint `/api/faucet/balance/`;
 - gera um endereco novo no backend;
 - envia valor fixo de `0.01 sBTC`;
-- imprime destino e TXID no terminal Signet.
+- imprime destino, TXID e status no terminal Signet.
 
 Para a faucet funcionar, a wallet `corecraft_faucet` precisa existir no node
-Signet e ter saldo. A API nao aceita valor nem endereco arbitrario enviado pelo
-navegador.
+Signet. Para envio real, ela tambem precisa ter saldo suficiente. No modo atual
+de demo, se a wallet existir mas tiver menos de `0.01 sBTC`, a API retorna
+`simulated: true` com um TXID simulado; esse retorno e util para apresentacao,
+mas nao deve ser tratado como transacao publicada na Signet. A API nao aceita
+valor nem endereco arbitrario enviado pelo navegador.
 
 Comandos fora da allowlist podem ser bloqueados com uma mensagem semelhante a:
 
@@ -481,7 +501,7 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `extractHelpCategoryOutput(fullHelp, category)` | Filtra uma secao completa do `help` real do Bitcoin Core. |
 | `writeTerminalOutput(t, output)` | Escreve saidas no terminal com limite de linhas, exceto para `help`, que pode exibir a saida completa. |
 | `renderRpcResponse(net, cmd, data)` | Atualiza o bloco `rpc.response` com o ultimo retorno RPC ou erro. |
-| `showDocTopic(topic)` | Troca o conteudo do viewer de Docs conforme o item escolhido no menu. |
+| `showDocTopic(topic)` | Atualiza o viewer resumido de documentacao integrado ao painel. |
 | `clearActiveTerminal()` | Limpa o terminal da rede ativa, recria o cabecalho do terminal, zera o input local e devolve o foco. |
 | `authHeaders()` | Monta headers HTTP com `Content-Type: application/json`; chamadas do navegador usam cookie `HttpOnly` apos login. |
 | `handleSocketMessage(e)` | Valida o JSON recebido via WebSocket, escreve mensagens ZMQ no terminal correto e adiciona blocos na timeline quando a rede ativa corresponde ao evento. |
@@ -489,7 +509,7 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `formatHelpOutput(t, text)` | Formata a saida textual do comando `help`, destacando categorias e comandos. |
 | `processCommand(net, cmd, silent)` | Envia o comando para `/terminal/`, trata erro de token, imprime resultado no terminal ou retorna o JSON em modo silencioso. |
 | `fetchNodeStatus()` | Consulta `/api/blockchain/lag/`, `/api/mempool/summary/`, `/api/events/summary/`, `/api/events/state-comparison/` e, em Signet, `/api/faucet/balance/` com trava de concorrencia, backoff e pausa quando a aba nao esta visivel. |
-| `loadInitialBlocks()` | Busca `/api/events/latest/` apenas no `regtest` e adiciona o bloco recente na timeline. |
+| `loadInitialBlocks()` | Busca `/api/events/latest/` para a rede ativa e adiciona blocos/transacoes recentes na timeline. |
 | `executeMacro(cmd)` | Executa comandos dos botoes rapidos no terminal da rede ativa, trata `faucet-dispense`, envia objetos grandes para `rpc.response`, bloqueia mineracao fora do regtest e trata o atalho `generatetoaddress 100 [auto]`. |
 | `mineBlockMacro()` | Automatiza mineracao de um bloco em regtest gerando endereco e chamando `generatetoaddress 1 <endereco>`. |
 | `verifyToken(token)` | Valida token inicial ou cookie `HttpOnly` em `/auth/verify/`. |
@@ -503,6 +523,7 @@ Esta secao mapeia as principais funcoes JavaScript presentes nos modulos de
 | `core/settings.py` | `env_list` | Converte listas separadas por virgula em listas Python. |
 | `core/views.py` | `index` | Renderiza a interface e informa se autenticacao e obrigatoria. |
 | `core/views.py` | `health` | Retorna status simples para healthcheck. |
+| `core/docs_test.py` | `docs_test_page` | Renderiza o prototipo `/docs-test/<topico>/` com visual IDE. |
 | `core/views.py` | `terminal_command` | Recebe comandos HTTP, valida token, faz parsing e executa RPC. |
 | `core/views.py` | `mempool_summary` | Resume mempool, calcula fee media/distribuicao e evita varredura profunda quando a mempool e grande. |
 | `core/views.py` | `blockchain_lag` | Retorna blocos, headers, lag, estado de IBD e progresso de verificacao. |
@@ -642,11 +663,13 @@ loadwallet corecraft
 Sintoma:
 
 ```text
-[ERRO] A Faucet esta seca
+[SUCESSO] 0.01 sBTC simulados para demo!
 ```
 
 Confira se a wallet `corecraft_faucet` existe, esta carregavel no node Signet e
-possui saldo suficiente para enviar `0.01 sBTC`.
+possui saldo suficiente para enviar `0.01 sBTC`. Sem saldo, o painel pode
+mostrar o fluxo simulado com `simulated: true`; para validar uma transacao real,
+recarregue a wallet com fundos Signet de teste.
 
 ### Eventos nao aparecem na timeline
 

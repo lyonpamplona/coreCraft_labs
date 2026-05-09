@@ -1,0 +1,76 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>coreCraft | Docs Teste</title>
+    <link rel="stylesheet" href="{% static 'css/panel.css' %}?v=20260504">
+    <link rel="stylesheet" href="{% static 'css/docs-test.css' %}?v=20260506-test">
+</head>
+<body class="docs-test-shell">
+    {% include "components/icons.html" %}
+    <main class="docs-test-layout">
+        <aside class="docs-test-sidebar">
+            <a class="docs-test-brand" href="/">
+                <svg class="icon"><use href="#ico-terminal"></use></svg>
+                <span><strong>coreCraft</strong><small>docs test</small></span>
+            </a>
+            <section class="docs-test-settings" aria-label="Ajustes do prototipo">
+                <div class="docs-test-setting">
+                    <span class="docs-test-label">Tema</span>
+                    <div class="docs-test-buttons">
+                        <button type="button" data-docs-theme="corecraft"><span>Core</span></button>
+                        <button type="button" data-docs-theme="contrast"><span>Contraste</span></button>
+                        <button type="button" data-docs-theme="amber"><span>Amber</span></button>
+                    </div>
+                </div>
+                <div class="docs-test-setting">
+                    <span class="docs-test-label">Fonte</span>
+                    <div class="docs-test-buttons">
+                        <button type="button" data-docs-font="mono"><span>Mono</span></button>
+                        <button type="button" data-docs-font="system"><span>System</span></button>
+                        <button type="button" data-docs-font="compact"><span>Compacta</span></button>
+                    </div>
+                </div>
+                <div class="docs-test-setting">
+                    <span class="docs-test-label">Exibir</span>
+                    <div class="docs-test-toggles">
+                        <button type="button" class="active" data-docs-toggle="sidebar"><span>Menu</span></button>
+                        <button type="button" class="active" data-docs-toggle="network"><span>Redes</span></button>
+                        <button type="button" class="active" data-docs-toggle="technical"><span>Tecnico</span></button>
+                        <button type="button" class="active" data-docs-toggle="code"><span>Codigo</span></button>
+                        <button type="button" class="active" data-docs-toggle="tables"><span>Tabelas</span></button>
+                    </div>
+                </div>
+            </section>
+            <nav class="docs-test-nav" aria-label="Topicos de teste">
+                {% for topic in topics %}
+                    <a class="docs-test-link {% if topic.key == doc.topic %}active{% endif %}" href="/docs-test/{{ topic.key }}/" data-doc-kind="{{ topic.kind }}">
+                        <strong>{{ topic.title }}</strong>
+                        <small>{{ topic.description }}</small>
+                    </a>
+                {% endfor %}
+            </nav>
+        </aside>
+        <section class="docs-test-main">
+            <header class="docs-test-topbar">
+                <a class="btn docs-test-back" href="/"><svg class="icon"><use href="#ico-terminal"></use></svg><span>Painel</span></a>
+                <button class="btn docs-test-menu" type="button" data-docs-menu><svg class="icon"><use href="#ico-info"></use></svg><span>Menu</span></button>
+                <div class="docs-test-path"><span>docs-test</span><strong>{{ doc.topic }}</strong></div>
+            </header>
+            <article class="docs-test-article" data-doc-kind="{{ doc.kind }}">
+                <header class="docs-test-hero">
+                    <span>{{ doc.kind }}</span>
+                    <h1>{{ doc.title }}</h1>
+                    <p>{{ doc.description }}</p>
+                </header>
+                <div class="docs-test-content">
+                    {{ doc.html|safe }}
+                </div>
+            </article>
+        </section>
+    </main>
+    <script type="module" src="{% static 'js/docs-test.js' %}?v=20260506-test"></script>
+</body>
+</html>
